@@ -3,6 +3,7 @@ import { search as searchExternal, tmdbAvailable } from './search.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
+const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
 
 const store = createStore();
 let items = [];
@@ -71,6 +72,12 @@ function metaLine(item) {
   return [escapeHtml(item.creator), escapeHtml(item.year)].filter(Boolean).join(' · ');
 }
 
+function externalLinkHtml(item) {
+  const label = EXTERNAL_LINK_LABEL[item.external_source];
+  if (!label || !item.external_url) return '';
+  return `<a href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
+}
+
 function cardHtml(item) {
   return `
     <div class="card glass" data-item-id="${item.id}">
@@ -121,7 +128,7 @@ function discoverCardHtml(item, idx) {
 function getFilters(prefix) {
   return {
     text: el(prefix + 'Filter').value.trim().toLowerCase(),
-    type: el(prefix + 'TypeFilter').value,
+    type: el(prefix + 'TypeChips').dataset.value,
   };
 }
 
@@ -158,10 +165,22 @@ function renderJournal() {
   });
 }
 
+function wireChipGroup(containerId, onChange) {
+  const container = el(containerId);
+  container.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      container.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      container.dataset.value = chip.dataset.value;
+      onChange();
+    });
+  });
+}
+
 el('wishlistFilter').addEventListener('input', renderWishlist);
-el('wishlistTypeFilter').addEventListener('change', renderWishlist);
+wireChipGroup('wishlistTypeChips', renderWishlist);
 el('journalFilter').addEventListener('input', renderJournal);
-el('journalTypeFilter').addEventListener('change', renderJournal);
+wireChipGroup('journalTypeChips', renderJournal);
 
 // ---------- Stars widget ----------
 
@@ -219,6 +238,7 @@ function openEditModal(item) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
+    ${externalLinkHtml(item)}
     ${item.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(item.description)}</p>` : ''}
     <div class="field">
       <label>Your rating</label>
@@ -278,6 +298,7 @@ function openAddModal(prefill = {}) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
+    ${externalLinkHtml(prefill)}
     <div class="field">
       <label for="addTitle">Title</label>
       <input type="text" id="addTitle" value="${escapeHtml(prefill.title || '')}" required>
@@ -338,6 +359,7 @@ function openAddModal(prefill = {}) {
       description: prefill.description || null,
       external_source: prefill.external_source || 'manual',
       external_id: prefill.external_id || null,
+      external_url: prefill.external_url || null,
       status: done ? 'completed' : 'wishlist',
       rating: rating || null,
       notes: done ? el('addNotes').value.trim() || null : null,
@@ -359,7 +381,7 @@ el('manualAddBtn').addEventListener('click', () => openAddModal({}));
 async function runDiscoverSearch() {
   const query = el('discoverQuery').value.trim();
   if (!query) return;
-  const type = el('discoverTypeFilter').value;
+  const type = el('discoverTypeChips').dataset.value;
   const btn = el('discoverSearchBtn');
   btn.disabled = true;
   btn.textContent = 'Searching…';
@@ -392,4 +414,7 @@ async function runDiscoverSearch() {
 el('discoverSearchBtn').addEventListener('click', runDiscoverSearch);
 el('discoverQuery').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') runDiscoverSearch();
+});
+wireChipGroup('discoverTypeChips', () => {
+  if (el('discoverQuery').value.trim()) runDiscoverSearch();
 });

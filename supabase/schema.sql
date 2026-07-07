@@ -18,6 +18,7 @@ create table if not exists public.items (
   -- where it came from (for search results pulled from an external API)
   external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'manual'
   external_id     text,
+  external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 
   -- journal state
   status         text not null default 'wishlist' check (status in ('wishlist', 'completed')),

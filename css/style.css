@@ -155,18 +155,24 @@ main {
   top: 64px;
   z-index: 19;
   display: flex;
-  gap: 4px;
-  max-width: 480px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 920px;
   margin: 16px auto;
+  padding: 0 16px;
+}
+
+.tabbar-pills {
+  display: flex;
+  gap: 4px;
   padding: 5px;
   border-radius: var(--radius-pill);
 }
 
 .tab {
-  flex: 1;
   border: none;
   background: transparent;
-  padding: 10px 14px;
+  padding: 10px 18px;
   border-radius: var(--radius-pill);
   font-size: 14px;
   font-weight: 600;
@@ -176,6 +182,19 @@ main {
 }
 
 .tab:hover { color: var(--text-primary); }
+
+.discover-fab {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .tab.active {
   background: rgba(var(--accent), 0.9);
@@ -200,7 +219,7 @@ main {
   flex-wrap: wrap;
 }
 
-.glass-input, .glass-select {
+.glass-input {
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   backdrop-filter: blur(20px) saturate(160%);
@@ -211,16 +230,48 @@ main {
   color: var(--text-primary);
   outline: none;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  flex: 1;
+  min-width: 160px;
 }
 
-.glass-input { flex: 1; min-width: 160px; }
-
-.glass-input:focus, .glass-select:focus {
+.glass-input:focus {
   border-color: rgba(var(--accent), 0.6);
   box-shadow: 0 0 0 4px rgba(var(--accent), 0.15);
 }
 
 .glass-input::placeholder { color: var(--text-tertiary); }
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.chip {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.chip:hover { color: var(--text-primary); }
+.chip:active { transform: scale(0.96); }
+
+.chip.active {
+  background: linear-gradient(135deg, rgb(var(--accent)), rgba(var(--accent-2), 0.9));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(var(--accent), 0.35);
+}
 
 .btn-primary, .btn-secondary, .btn-ghost, .btn-danger {
   border: none;
@@ -484,6 +535,18 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
 .modal-title { font-size: 19px; font-weight: 700; margin: 0; }
 .modal-subtitle { font-size: 13.5px; color: var(--text-secondary); margin: 2px 0 0; }
+
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--accent));
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+.external-link:hover { text-decoration: underline; }
 
 .modal-close {
   background: rgba(120, 120, 128, 0.16);

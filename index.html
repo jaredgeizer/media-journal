@@ -15,63 +15,65 @@
   <button id="signOutBtn" class="btn-ghost hidden">Sign out</button>
 </header>
 
-<nav class="tabbar glass" role="tablist">
-  <button class="tab active" data-tab="wishlist">Wishlist</button>
-  <button class="tab" data-tab="journal">Journal</button>
-  <button class="tab" data-tab="discover">Discover</button>
+<nav class="tabbar" role="tablist">
+  <div class="tabbar-pills glass">
+    <button class="tab active" data-tab="journal">Journal</button>
+    <button class="tab" data-tab="wishlist">Wishlist</button>
+  </div>
+  <button class="tab discover-fab glass" data-tab="discover" aria-label="Discover — find something new">+</button>
 </nav>
 
 <main>
-  <!-- WISHLIST -->
-  <section id="tab-wishlist" class="tab-panel active">
-    <div class="search-row">
-      <input type="search" id="wishlistFilter" class="glass-input" placeholder="Search your wishlist…">
-      <select id="wishlistTypeFilter" class="glass-select">
-        <option value="all">All types</option>
-        <option value="movie">🍿 Movies</option>
-        <option value="tv">📺 TV Shows</option>
-        <option value="book">📚 Books</option>
-        <option value="podcast">🎙️ Podcasts</option>
-        <option value="play">🎭 Plays</option>
-        <option value="restaurant">🍽️ Restaurants</option>
-        <option value="other">✨ Other</option>
-      </select>
-    </div>
-    <div id="wishlistGrid" class="card-grid"></div>
-    <p id="wishlistEmpty" class="empty-state hidden">Nothing on your wishlist yet — head to Discover to find something.</p>
-  </section>
-
   <!-- JOURNAL -->
-  <section id="tab-journal" class="tab-panel">
+  <section id="tab-journal" class="tab-panel active">
     <div class="search-row">
       <input type="search" id="journalFilter" class="glass-input" placeholder="Search your journal…">
-      <select id="journalTypeFilter" class="glass-select">
-        <option value="all">All types</option>
-        <option value="movie">🍿 Movies</option>
-        <option value="tv">📺 TV Shows</option>
-        <option value="book">📚 Books</option>
-        <option value="podcast">🎙️ Podcasts</option>
-        <option value="play">🎭 Plays</option>
-        <option value="restaurant">🍽️ Restaurants</option>
-        <option value="other">✨ Other</option>
-      </select>
+    </div>
+    <div class="chip-row" id="journalTypeChips" data-value="all">
+      <button type="button" class="chip active" data-value="all">All</button>
+      <button type="button" class="chip" data-value="movie">🍿 Movies</button>
+      <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
+      <button type="button" class="chip" data-value="book">📚 Books</button>
+      <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
+      <button type="button" class="chip" data-value="play">🎭 Plays</button>
+      <button type="button" class="chip" data-value="restaurant">🍽️ Restaurants</button>
+      <button type="button" class="chip" data-value="other">✨ Other</button>
     </div>
     <div id="journalFeed" class="journal-feed"></div>
     <p id="journalEmpty" class="empty-state hidden">Nothing logged yet. Rate something from your wishlist to start your journal.</p>
+  </section>
+
+  <!-- WISHLIST -->
+  <section id="tab-wishlist" class="tab-panel">
+    <div class="search-row">
+      <input type="search" id="wishlistFilter" class="glass-input" placeholder="Search your wishlist…">
+    </div>
+    <div class="chip-row" id="wishlistTypeChips" data-value="all">
+      <button type="button" class="chip active" data-value="all">All</button>
+      <button type="button" class="chip" data-value="movie">🍿 Movies</button>
+      <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
+      <button type="button" class="chip" data-value="book">📚 Books</button>
+      <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
+      <button type="button" class="chip" data-value="play">🎭 Plays</button>
+      <button type="button" class="chip" data-value="restaurant">🍽️ Restaurants</button>
+      <button type="button" class="chip" data-value="other">✨ Other</button>
+    </div>
+    <div id="wishlistGrid" class="card-grid"></div>
+    <p id="wishlistEmpty" class="empty-state hidden">Nothing on your wishlist yet — tap + to find something.</p>
   </section>
 
   <!-- DISCOVER -->
   <section id="tab-discover" class="tab-panel">
     <div class="search-row">
       <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts…">
-      <select id="discoverTypeFilter" class="glass-select">
-        <option value="all">All types</option>
-        <option value="movie">🍿 Movies</option>
-        <option value="tv">📺 TV Shows</option>
-        <option value="book">📚 Books</option>
-        <option value="podcast">🎙️ Podcasts</option>
-      </select>
       <button id="discoverSearchBtn" class="btn-primary">Search</button>
+    </div>
+    <div class="chip-row" id="discoverTypeChips" data-value="all">
+      <button type="button" class="chip active" data-value="all">All</button>
+      <button type="button" class="chip" data-value="movie">🍿 Movies</button>
+      <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
+      <button type="button" class="chip" data-value="book">📚 Books</button>
+      <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
     </div>
     <div id="discoverNotice" class="notice warn hidden"></div>
     <div id="discoverResults" class="card-grid"></div>

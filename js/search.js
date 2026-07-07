@@ -89,6 +89,7 @@ async function searchBooks(query) {
       description: v.description || null,
       external_source: 'google_books',
       external_id: r.id,
+      external_url: v.infoLink || null,
     };
   });
 }
@@ -108,6 +109,7 @@ async function searchPodcasts(query) {
     description: r.primaryGenreName ? `${r.primaryGenreName} podcast` : null,
     external_source: 'itunes',
     external_id: String(r.collectionId || r.trackId),
+    external_url: r.collectionViewUrl || r.trackViewUrl || null,
   }));
 }
 

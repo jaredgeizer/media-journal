@@ -60,6 +60,17 @@ That's it — items you add will now sync everywhere you sign in.
 > Level Security policies in `schema.sql`, not by keeping this key
 > secret. It's safe to commit `js/config.js` with real values.
 
+### Updating an existing Supabase project
+
+If you already ran `schema.sql` once and the file has since gained new
+columns, don't re-run the whole thing — it's safe to (the `create table
+if not exists` and `drop policy if exists` guards make it idempotent),
+but the simplest fix is to run just the new column(s). Currently:
+
+```sql
+alter table public.items add column if not exists external_url text;
+```
+
 ## Setting up movie & TV search (TMDb)
 
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org).
