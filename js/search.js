@@ -73,8 +73,15 @@ async function searchBooks(query) {
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20${keyParam}`
   );
   if (!res.ok) {
-    const hint = res.status === 429 ? ' — add a free Google Books API key to js/config.js to get your own quota (see README)' : '';
-    throw new Error(`Book search failed (${res.status})${hint}`);
+    let detail = '';
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.error && errBody.error.message) detail = ` — ${errBody.error.message}`;
+    } catch {
+      // response wasn't JSON; ignore
+    }
+    const hint = res.status === 429 ? ' Add a free Google Books API key to js/config.js to get your own quota (see README).' : '';
+    throw new Error(`Book search failed (${res.status})${detail}.${hint}`);
   }
   const data = await res.json();
   return (data.items || []).map((r) => {

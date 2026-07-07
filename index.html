@@ -11,9 +11,18 @@
 <div class="bg-mesh"></div>
 
 <header class="topbar glass">
-  <div class="brand">🎬 Media Journal</div>
-  <button id="signOutBtn" class="btn-ghost hidden">Sign out</button>
+  <div class="brand">Media Journal</div>
+  <div class="account-menu hidden" id="accountMenu">
+    <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
+    <div class="account-dropdown hidden" id="accountDropdown">
+      <button type="button" class="account-dropdown-item" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
 </header>
+
+<div id="demoBanner" class="demo-banner glass hidden">
+  Demo Mode — data is stored only on this device. See README.md to connect Supabase for cross-device sync.
+</div>
 
 <nav class="tabbar" role="tablist">
   <div class="tabbar-pills glass">
@@ -45,7 +54,7 @@
     </div>
     <div id="currentlyContainer" class="hidden">
       <h2 class="section-heading">Currently Reading &amp; Watching</h2>
-      <div id="currentlyFeed" class="journal-feed"></div>
+      <div id="currentlyFeed" class="currently-scroll"></div>
     </div>
     <div id="journalFeed" class="journal-feed"></div>
     <p id="journalEmpty" class="empty-state hidden">Nothing logged yet. Rate something from your wishlist to start your journal.</p>
@@ -94,10 +103,6 @@
 </main>
 
 <div id="modalRoot"></div>
-
-<div id="demoBanner" class="demo-banner glass hidden">
-  Demo Mode — data is stored only on this device. See README.md to connect Supabase for cross-device sync.
-</div>
 
 <footer class="tmdb-attribution">This product uses the TMDb API but is not endorsed or certified by TMDb.</footer>
 

@@ -29,7 +29,7 @@ async function boot() {
   if (store.mode === 'demo') {
     el('demoBanner').classList.remove('hidden');
   } else {
-    el('signOutBtn').classList.remove('hidden');
+    el('accountMenu').classList.remove('hidden');
   }
 
   store.onAuthChange(async (user) => {
@@ -50,6 +50,18 @@ async function loadItems() {
 el('signOutBtn').addEventListener('click', async () => {
   await store.signOut();
   location.replace('login.html');
+});
+
+el('accountBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  el('accountDropdown').classList.toggle('hidden');
+});
+
+document.addEventListener('click', (e) => {
+  const dropdown = el('accountDropdown');
+  if (!dropdown.classList.contains('hidden') && !e.target.closest('.account-menu')) {
+    dropdown.classList.add('hidden');
+  }
 });
 
 boot();
@@ -310,16 +322,15 @@ function currentlyEntryHtml(item) {
   const progressText =
     item.media_type === 'book'
       ? `${item.progress_percent || 0}% done`
-      : `Season ${item.progress_season || 1}, Episode ${item.progress_episode || 1}`;
+      : `S${item.progress_season || 1} · E${item.progress_episode || 1}`;
   return `
-    <div class="journal-entry glass" data-item-id="${item.id}">
-      ${posterOrEmoji(item)}
-      <div class="journal-entry-body">
-        <div class="journal-entry-header">
-          <p class="journal-entry-title">${escapeHtml(item.title)}</p>
-        </div>
-        <p class="journal-entry-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+    <div class="currently-card glass" data-item-id="${item.id}">
+      <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+      ${posterOrEmoji(item, 'currently-card-poster')}
+      <div class="card-body">
+        <p class="card-title">${escapeHtml(item.title)}</p>
         <p class="progress-badge">${progressText}</p>
+        ${item.media_type === 'tv' ? `<button type="button" class="btn-secondary next-episode-btn" data-next-episode-id="${item.id}">Next Episode</button>` : ''}
       </div>
     </div>`;
 }
@@ -335,6 +346,17 @@ function renderCurrently() {
   container.classList.toggle('hidden', list.length === 0);
   feed.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
+  });
+  feed.querySelectorAll('[data-next-episode-id]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.nextEpisodeId;
+      const current = items.find((i) => i.id === id);
+      const updated = await store.updateItem(id, { progress_episode: (current.progress_episode || 1) + 1 });
+      const idx = items.findIndex((i) => i.id === id);
+      items[idx] = updated;
+      renderCurrently();
+    });
   });
 }
 
