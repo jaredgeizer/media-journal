@@ -47,8 +47,8 @@
     </div>
     <div class="chip-row" id="journalTypeChips" data-value="all">
       <div class="tag-filter-wrap">
-        <button type="button" class="filter-toggle" id="journalTagFilterBtn">🏷️ Tags</button>
-        <div class="tag-filter-dropdown hidden" id="journalTagFilterDropdown"></div>
+        <button type="button" class="filter-toggle" id="journalFilterBtn">🎚️ Filters</button>
+        <div class="tag-filter-dropdown hidden" id="journalFilterDropdown"></div>
       </div>
       <span class="chip-divider">|</span>
       <div class="chip-scroll">
@@ -76,7 +76,10 @@
       <input type="search" id="wishlistFilter" class="glass-input" placeholder="Search your wishlist…">
     </div>
     <div class="chip-row" id="wishlistTypeChips" data-value="all">
-      <button type="button" class="filter-toggle" id="wishlistShortlistFilterBtn">⭐ Shortlist</button>
+      <div class="tag-filter-wrap">
+        <button type="button" class="filter-toggle" id="wishlistFilterBtn">🎚️ Filters</button>
+        <div class="tag-filter-dropdown hidden" id="wishlistFilterDropdown"></div>
+      </div>
       <span class="chip-divider">|</span>
       <div class="chip-scroll">
         <button type="button" class="chip active" data-value="all">All</button>

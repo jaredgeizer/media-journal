@@ -461,6 +461,16 @@ button.discover-fab.active {
 
 .tag-filter-empty { font-size: 13px; color: var(--text-tertiary); padding: 6px 4px; margin: 0; }
 
+.tag-filter-section-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-tertiary);
+  padding: 8px 4px 4px;
+}
+.tag-filter-section-heading:first-child { padding-top: 2px; }
+
 .section-heading {
   font-size: 15px;
   font-weight: 700;

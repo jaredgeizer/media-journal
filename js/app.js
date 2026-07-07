@@ -11,8 +11,9 @@ const WISHLIST_TAGS = ['⭐ Shortlist', '👍 Recommended'];
 
 const store = createStore();
 let items = [];
-let wishlistShortlistOnly = false;
+let wishlistSelectedTags = new Set();
 let journalSelectedTags = new Set();
+let journalSelectedRatings = new Set();
 
 const el = (id) => document.getElementById(id);
 
@@ -361,7 +362,7 @@ function renderWishlist() {
   const filters = getFilters('wishlist');
   const list = items
     .filter((i) => i.status === 'wishlist' && matches(i, filters))
-    .filter((i) => !wishlistShortlistOnly || (i.tags || []).includes('⭐ Shortlist'))
+    .filter((i) => wishlistSelectedTags.size === 0 || (i.tags || []).some((t) => wishlistSelectedTags.has(t)))
     .sort((a, b) => new Date(b.date_added) - new Date(a.date_added));
   const grid = el('wishlistGrid');
   grid.innerHTML = list.map(cardHtml).join('');
@@ -466,6 +467,7 @@ function renderJournal() {
   const list = items
     .filter((i) => i.status === 'completed' && matches(i, filters))
     .filter((i) => journalSelectedTags.size === 0 || (i.tags || []).some((t) => journalSelectedTags.has(t)))
+    .filter((i) => journalSelectedRatings.size === 0 || journalSelectedRatings.has(i.rating))
     .sort((a, b) => new Date(b.date_completed || b.updated_at || 0) - new Date(a.date_completed || a.updated_at || 0));
   const feed = el('journalFeed');
   feed.innerHTML = list.map(journalEntryHtml).join('');
@@ -493,46 +495,85 @@ wireChipGroup('wishlistTypeChips', renderWishlist);
 el('journalFilter').addEventListener('input', renderJournal);
 wireChipGroup('journalTypeChips', renderJournal);
 
-el('wishlistShortlistFilterBtn').addEventListener('click', () => {
-  wishlistShortlistOnly = !wishlistShortlistOnly;
-  el('wishlistShortlistFilterBtn').classList.toggle('active', wishlistShortlistOnly);
-  renderWishlist();
+function renderWishlistFilterDropdown() {
+  const dropdown = el('wishlistFilterDropdown');
+  dropdown.innerHTML = WISHLIST_TAGS.map(
+    (t) => `<label class="tag-filter-option"><input type="checkbox" value="${escapeHtml(t)}" ${wishlistSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`
+  ).join('');
+  dropdown.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) wishlistSelectedTags.add(cb.value);
+      else wishlistSelectedTags.delete(cb.value);
+      el('wishlistFilterBtn').classList.toggle('active', wishlistSelectedTags.size > 0);
+      renderWishlist();
+    });
+  });
+}
+
+el('wishlistFilterBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  renderWishlistFilterDropdown();
+  el('wishlistFilterDropdown').classList.toggle('hidden');
 });
 
-function renderJournalTagDropdown() {
+function renderJournalFilterDropdown() {
   const allTags = Array.from(new Set(items.filter((i) => i.status === 'completed').flatMap((i) => i.tags || []))).sort();
-  const dropdown = el('journalTagFilterDropdown');
-  if (!allTags.length) {
-    dropdown.innerHTML = `<p class="tag-filter-empty">No tags yet.</p>`;
-    return;
-  }
-  dropdown.innerHTML = allTags
+  const dropdown = el('journalFilterDropdown');
+
+  const tagsHtml = allTags.length
+    ? allTags
+        .map(
+          (t) =>
+            `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${journalSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`
+        )
+        .join('')
+    : `<p class="tag-filter-empty">No tags yet.</p>`;
+
+  const ratingHtml = [5, 4, 3, 2, 1]
     .map(
-      (t) =>
-        `<label class="tag-filter-option"><input type="checkbox" value="${escapeHtml(t)}" ${journalSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`
+      (r) =>
+        `<label class="tag-filter-option"><input type="checkbox" data-filter-rating value="${r}" ${journalSelectedRatings.has(r) ? 'checked' : ''}> ${'★'.repeat(r)}${'☆'.repeat(5 - r)}</label>`
     )
     .join('');
-  dropdown.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+
+  dropdown.innerHTML = `
+    <div class="tag-filter-section-heading">Tags</div>
+    ${tagsHtml}
+    <div class="tag-filter-section-heading">Rating</div>
+    ${ratingHtml}
+  `;
+
+  dropdown.querySelectorAll('input[data-filter-tag]').forEach((cb) => {
     cb.addEventListener('change', () => {
       if (cb.checked) journalSelectedTags.add(cb.value);
       else journalSelectedTags.delete(cb.value);
-      el('journalTagFilterBtn').classList.toggle('active', journalSelectedTags.size > 0);
+      el('journalFilterBtn').classList.toggle('active', journalSelectedTags.size > 0 || journalSelectedRatings.size > 0);
+      renderJournal();
+    });
+  });
+  dropdown.querySelectorAll('input[data-filter-rating]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const r = parseInt(cb.value, 10);
+      if (cb.checked) journalSelectedRatings.add(r);
+      else journalSelectedRatings.delete(r);
+      el('journalFilterBtn').classList.toggle('active', journalSelectedTags.size > 0 || journalSelectedRatings.size > 0);
       renderJournal();
     });
   });
 }
 
-el('journalTagFilterBtn').addEventListener('click', (e) => {
+el('journalFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  renderJournalTagDropdown();
-  el('journalTagFilterDropdown').classList.toggle('hidden');
+  renderJournalFilterDropdown();
+  el('journalFilterDropdown').classList.toggle('hidden');
 });
 
 document.addEventListener('click', (e) => {
-  const dropdown = el('journalTagFilterDropdown');
-  if (!dropdown.classList.contains('hidden') && !e.target.closest('.tag-filter-wrap')) {
-    dropdown.classList.add('hidden');
-  }
+  document.querySelectorAll('.tag-filter-dropdown').forEach((dropdown) => {
+    if (!dropdown.classList.contains('hidden') && !e.target.closest('.tag-filter-wrap')) {
+      dropdown.classList.add('hidden');
+    }
+  });
 });
 
 // ---------- Stars widget ----------
