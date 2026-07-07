@@ -4,6 +4,7 @@ import { search as searchExternal, tmdbAvailable } from './search.js';
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
 const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
+const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', play: 'Seen', restaurant: 'Been', other: 'Done' };
 
 const PROGRESS_TYPES = ['book', 'tv'];
 const WISHLIST_TAGS = ['⭐ Shortlist'];
@@ -196,10 +197,28 @@ function journalEntryHtml(item) {
     </div>`;
 }
 
+function findLibraryMatch(result) {
+  return items.find(
+    (i) =>
+      (result.external_id && result.external_source && i.external_id === result.external_id && i.external_source === result.external_source) ||
+      (i.media_type === result.media_type && i.title.trim().toLowerCase() === (result.title || '').trim().toLowerCase())
+  );
+}
+
+function libraryStatusBadgeHtml(match) {
+  if (!match) return '';
+  if (match.status === 'completed') {
+    return `<div class="card-status-badge card-status-badge--done">✓ ${COMPLETED_VERB[match.media_type] || 'Done'}</div>`;
+  }
+  return `<div class="card-status-badge card-status-badge--saved">✓ Saved</div>`;
+}
+
 function discoverCardHtml(item, idx) {
+  const match = findLibraryMatch(item);
   return `
-    <div class="card glass" data-idx="${idx}">
+    <div class="card glass${match && match.status === 'completed' ? ' card--seen' : ''}" data-idx="${idx}">
       <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+      ${libraryStatusBadgeHtml(match)}
       ${posterOrEmoji(item)}
       <div class="card-body">
         <p class="card-title">${escapeHtml(item.title)}</p>
