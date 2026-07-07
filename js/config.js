@@ -12,6 +12,15 @@
 //   1. Create a free account at https://www.themoviedb.org
 //   2. Settings → API → request a key → copy the "API Read Access Token" (v4 auth) below
 //
+// Google Books API key (optional, avoids the shared 429-rate-limited quota
+// that unkeyed requests share with the whole internet):
+//   1. Go to https://console.cloud.google.com, create/select a project
+//   2. APIs & Services → Library → enable "Books API"
+//   3. APIs & Services → Credentials → Create Credentials → API key → copy it below
+//   4. Recommended: click the new key → restrict it to the Books API, and
+//      under "Application restrictions" add your GitHub Pages URL as an
+//      allowed HTTP referrer (e.g. https://jaredgeizer.github.io/*)
+//
 // Leaving these as placeholders runs the app in local Demo Mode: data is
 // stored only in this browser (localStorage) and search falls back to a
 // small built-in sample so you can try the UI before setting anything up.
@@ -20,4 +29,5 @@ window.MEDIA_JOURNAL_CONFIG = {
   supabaseUrl: 'https://wdoxefmlztkhccbvnecs.supabase.co',
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indkb3hlZm1senRraGNjYnZuZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDU4MjQsImV4cCI6MjA5OTAyMTgyNH0.AXKWd7tVyZO4o6p3dpaZIam00T_0FYYZCCRFVjnEvfU',
   tmdbAccessToken: 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIxOWVhNWIwMDRkYzAyYzBjOWRjM2ZlZGFiMGM3OGU3ZSIsIm5iZiI6MTc2MTY4MDUwOS40MDcsInN1YiI6IjY5MDExYzdkZGY5YWFmMWNmMWE2MzlkZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.nMOluNqeVlpyCL7kdkNIecRylqEfX7jzch6mk9jIqSo',
+  googleBooksApiKey: 'YOUR_GOOGLE_BOOKS_API_KEY',
 };

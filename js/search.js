@@ -3,7 +3,8 @@
 // (minus id/status/etc, which get filled in when the user adds it).
 //
 // - Movies & TV: TMDb (needs a free API token in js/config.js)
-// - Books: Google Books (no key required)
+// - Books: Google Books (works without a key, but shares a low global quota —
+//   add a free Google API key in js/config.js to get your own quota)
 // - Podcasts: iTunes Search API (no key required)
 // - Plays / restaurants / other: no free search API wired up — added manually.
 
@@ -16,6 +17,11 @@ function tmdbToken() {
 
 export function tmdbAvailable() {
   return !!tmdbToken();
+}
+
+function googleBooksKey() {
+  const k = (window.MEDIA_JOURNAL_CONFIG || {}).googleBooksApiKey;
+  return k && !k.startsWith('YOUR_') ? k : null;
 }
 
 async function searchMovies(query) {
@@ -61,10 +67,15 @@ async function searchTV(query) {
 }
 
 async function searchBooks(query) {
+  const key = googleBooksKey();
+  const keyParam = key ? `&key=${encodeURIComponent(key)}` : '';
   const res = await fetch(
-    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20`
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20${keyParam}`
   );
-  if (!res.ok) throw new Error(`Book search failed (${res.status})`);
+  if (!res.ok) {
+    const hint = res.status === 429 ? ' — add a free Google Books API key to js/config.js to get your own quota (see README)' : '';
+    throw new Error(`Book search failed (${res.status})${hint}`);
+  }
   const data = await res.json();
   return (data.items || []).map((r) => {
     const v = r.volumeInfo || {};

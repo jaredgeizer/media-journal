@@ -67,8 +67,25 @@ That's it — items you add will now sync everywhere you sign in.
    **API Read Access Token (v4 auth)**.
 3. Paste it into `tmdbAccessToken` in `js/config.js`.
 
-Book search (Google Books) and podcast search (iTunes Search API) need
-no key and work out of the box.
+Podcast search (iTunes Search API) needs no key and works out of the box.
+
+## Setting up book search (Google Books)
+
+Book search works with no key, but unkeyed requests share a small global
+quota with everyone else doing the same — you'll occasionally see
+`Book search failed (429)`. A free key gives you your own quota:
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com),
+   create or select a project.
+2. **APIs & Services → Library** → search for and enable **Books API**.
+3. **APIs & Services → Credentials → Create Credentials → API key**,
+   then copy it.
+4. Recommended: click into the new key and restrict it — under **API
+   restrictions** limit it to the Books API, and under **Application
+   restrictions** add your GitHub Pages URL as an allowed HTTP referrer
+   (e.g. `https://<your-username>.github.io/*`) so it can't be used from
+   anywhere else if someone finds it in your published JS.
+5. Paste it into `googleBooksApiKey` in `js/config.js`.
 
 ## Deploying to GitHub Pages
 
