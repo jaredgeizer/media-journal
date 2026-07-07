@@ -937,7 +937,10 @@ async function runDiscoverSearch() {
 
 el('discoverSearchBtn').addEventListener('click', runDiscoverSearch);
 el('discoverQuery').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') runDiscoverSearch();
+  if (e.key === 'Enter') {
+    e.target.blur();
+    runDiscoverSearch();
+  }
 });
 wireChipGroup('discoverTypeChips', () => {
   if (el('discoverQuery').value.trim()) runDiscoverSearch();
