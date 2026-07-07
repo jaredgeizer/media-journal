@@ -428,6 +428,13 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
 .demo-banner a { color: rgb(var(--accent)); text-decoration: none; font-weight: 600; }
 
+.tmdb-attribution {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 10px 16px 90px;
+}
+
 .hidden { display: none !important; }
 
 /* ---------- Modal ---------- */
