@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1fa">
+<title>Sign in — Media Journal</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="bg-mesh"></div>
+
+<div class="auth-wrap">
+  <div class="auth-card glass-strong">
+    <div class="auth-logo">🎬</div>
+    <h1>Media Journal</h1>
+    <p class="sub" id="authSubtitle">Sign in to sync your list across devices.</p>
+
+    <form id="authForm">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required minlength="6">
+      </div>
+      <button type="submit" class="btn-primary" id="authSubmit" style="width:100%">Sign in</button>
+      <p class="error" id="authError"></p>
+    </form>
+
+    <div class="switch">
+      <span id="switchPrompt">Don't have an account?</span>
+      <button type="button" id="switchBtn">Sign up</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script type="module">
+  import { createStore } from './js/storage.js';
+
+  const store = createStore();
+
+  if (store.mode === 'demo') {
+    // No account system in demo mode — straight into the app.
+    location.replace('index.html');
+  }
+
+  store.onAuthChange((user) => {
+    if (user) location.replace('index.html');
+  });
+
+  let mode = 'signin';
+  const form = document.getElementById('authForm');
+  const errorEl = document.getElementById('authError');
+  const submitBtn = document.getElementById('authSubmit');
+  const switchBtn = document.getElementById('switchBtn');
+  const switchPrompt = document.getElementById('switchPrompt');
+  const subtitle = document.getElementById('authSubtitle');
+
+  switchBtn.addEventListener('click', () => {
+    mode = mode === 'signin' ? 'signup' : 'signin';
+    errorEl.textContent = '';
+    if (mode === 'signup') {
+      submitBtn.textContent = 'Create account';
+      switchPrompt.textContent = 'Already have an account?';
+      switchBtn.textContent = 'Sign in';
+      subtitle.textContent = 'Create an account to sync your list across devices.';
+    } else {
+      submitBtn.textContent = 'Sign in';
+      switchPrompt.textContent = "Don't have an account?";
+      switchBtn.textContent = 'Sign up';
+      subtitle.textContent = 'Sign in to sync your list across devices.';
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.textContent = '';
+    submitBtn.disabled = true;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    try {
+      if (mode === 'signin') {
+        await store.signInWithPassword(email, password);
+      } else {
+        await store.signUp(email, password);
+        errorEl.style.color = 'var(--text-secondary)';
+        errorEl.textContent = 'Check your email to confirm your account, then sign in.';
+        submitBtn.disabled = false;
+        return;
+      }
+    } catch (err) {
+      errorEl.style.color = 'var(--danger)';
+      errorEl.textContent = err.message || 'Something went wrong.';
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
