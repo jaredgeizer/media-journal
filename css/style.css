@@ -1039,4 +1039,19 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   #wishlistTypeChips .chip-divider {
     flex: 0 0 auto;
   }
+
+  /* iOS Safari auto-zooms the page when focusing a text input smaller
+     than 16px, which stays zoomed in (and misaligned) after the input
+     blurs. Keep every focusable text input at 16px+ on mobile so
+     refocusing the search bar (or any modal field) never triggers it. */
+  .glass-input,
+  .field textarea,
+  .field input,
+  .field select,
+  .tag-add-input,
+  .currently-progress-number {
+    font-size: 16px;
+  }
+
+  .currently-progress-number { width: 50px; }
 }

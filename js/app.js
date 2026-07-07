@@ -743,9 +743,16 @@ function openReviewModal(item) {
       <label for="reviewNotes">Notes</label>
       <textarea id="reviewNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(current.notes || '')}</textarea>
     </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-primary" id="reviewDoneBtn" style="width:100%">Add to Journal</button>
+    </div>
   `;
   openModalWithContent(html);
   el('modalCloseBtn').addEventListener('click', closeModal);
+  el('reviewDoneBtn').addEventListener('click', () => {
+    document.querySelector('.tab[data-tab="journal"]').click();
+    closeModal();
+  });
 
   async function persist(patch) {
     const updated = await store.updateItem(current.id, patch);
