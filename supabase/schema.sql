@@ -21,10 +21,15 @@ create table if not exists public.items (
   external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 
   -- journal state
-  status         text not null default 'wishlist' check (status in ('wishlist', 'completed')),
+  status         text not null default 'wishlist' check (status in ('wishlist', 'in_progress', 'completed')),
   rating         smallint check (rating between 1 and 5),
   notes          text,
   tags           text[] not null default '{}',
+
+  -- progress tracking (books & TV shows only, while status = 'in_progress')
+  progress_percent smallint check (progress_percent between 0 and 100),  -- books
+  progress_season   smallint,                                            -- TV shows
+  progress_episode  smallint,                                            -- TV shows
 
   date_added     timestamptz not null default now(),
   date_completed timestamptz,

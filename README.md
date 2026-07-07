@@ -25,6 +25,12 @@ multi-select "reaction" tags (Favorite, Would Rewatch, Recommend, Meh,
 etc.) — the exact wording adapts per media type (e.g. "Would Reread" for
 books). Tags are also searchable in the filter bar.
 
+Books and TV shows can also be marked **Currently Reading/Watching**
+from the wishlist — they then show at the top of the Journal with
+editable progress (a percent-complete for books, season/episode for TV)
+until you rate them, which finishes and files them into the journal feed
+below.
+
 ## Running it locally (Demo Mode)
 
 No setup required. Just serve the folder and open it in a browser:
@@ -76,6 +82,11 @@ but the simplest fix is to run just the new column(s). Currently:
 ```sql
 alter table public.items add column if not exists external_url text;
 alter table public.items add column if not exists tags text[] not null default '{}';
+alter table public.items add column if not exists progress_percent smallint check (progress_percent between 0 and 100);
+alter table public.items add column if not exists progress_season smallint;
+alter table public.items add column if not exists progress_episode smallint;
+alter table public.items drop constraint if exists items_status_check;
+alter table public.items add constraint items_status_check check (status in ('wishlist', 'in_progress', 'completed'));
 ```
 
 ## Setting up movie & TV search (TMDb)

@@ -5,6 +5,7 @@ const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️'
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
 const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
 
+const PROGRESS_TYPES = ['book', 'tv'];
 const WISHLIST_TAGS = ['⭐ Shortlist'];
 const REACTION_TAGS = {
   movie: ['Favorite', 'Would Rewatch', 'Recommend', 'Meh', 'Disappointing'],
@@ -18,6 +19,8 @@ const REACTION_TAGS = {
 
 const store = createStore();
 let items = [];
+let wishlistShortlistOnly = false;
+let journalSelectedTags = new Set();
 
 const el = (id) => document.getElementById(id);
 
@@ -70,6 +73,10 @@ document.querySelectorAll('.tab').forEach((btn) => {
   });
 });
 
+el('discoverFabBtn').addEventListener('click', () => {
+  el('discoverQuery').focus();
+});
+
 // ---------- Rendering helpers ----------
 
 function posterOrEmoji(item, sizeClass = 'card-poster') {
@@ -108,6 +115,50 @@ function wireTagChips(id) {
 
 function getActiveChipValues(id) {
   return Array.from(el(id).querySelectorAll('.chip.active')).map((c) => c.dataset.value);
+}
+
+function hasProgress(item) {
+  if (item.media_type === 'book') return item.progress_percent != null;
+  if (item.media_type === 'tv') return item.progress_season != null || item.progress_episode != null;
+  return false;
+}
+
+function progressFieldHtml(item) {
+  if (item.status !== 'in_progress') return '';
+  if (item.media_type === 'book') {
+    const pct = item.progress_percent || 0;
+    return `
+      <div class="field">
+        <label>Progress</label>
+        <div class="progress-row">
+          <input type="range" id="editProgressPercent" min="0" max="100" step="1" value="${pct}">
+          <span id="editProgressPercentLabel">${pct}%</span>
+        </div>
+      </div>`;
+  }
+  if (item.media_type === 'tv') {
+    const season = item.progress_season || 1;
+    const episode = item.progress_episode || 1;
+    return `
+      <div class="field">
+        <label>Progress</label>
+        <div class="progress-row">
+          <span class="progress-subtext">Season</span>
+          <input type="number" id="editProgressSeason" min="1" value="${season}">
+          <span class="progress-subtext">Episode</span>
+          <input type="number" id="editProgressEpisode" min="1" value="${episode}">
+        </div>
+      </div>`;
+  }
+  return '';
+}
+
+function ratingHintText(item) {
+  if (item.status === 'wishlist') return 'Rate it to move it to your journal.';
+  if (item.status === 'in_progress') return 'Rate it to finish and move it to your journal.';
+  return hasProgress(item)
+    ? 'Clear the rating to go back to Currently Reading/Watching.'
+    : 'Clear the rating to move this back to your wishlist.';
 }
 
 function cardHtml(item) {
@@ -177,6 +228,7 @@ function renderWishlist() {
   const filters = getFilters('wishlist');
   const list = items
     .filter((i) => i.status === 'wishlist' && matches(i, filters))
+    .filter((i) => !wishlistShortlistOnly || (i.tags || []).includes('⭐ Shortlist'))
     .sort((a, b) => new Date(b.date_added) - new Date(a.date_added));
   const grid = el('wishlistGrid');
   grid.innerHTML = list.map(cardHtml).join('');
@@ -186,10 +238,43 @@ function renderWishlist() {
   });
 }
 
+function currentlyEntryHtml(item) {
+  const progressText =
+    item.media_type === 'book'
+      ? `${item.progress_percent || 0}% done`
+      : `Season ${item.progress_season || 1}, Episode ${item.progress_episode || 1}`;
+  return `
+    <div class="journal-entry glass" data-item-id="${item.id}">
+      ${posterOrEmoji(item)}
+      <div class="journal-entry-body">
+        <div class="journal-entry-header">
+          <p class="journal-entry-title">${escapeHtml(item.title)}</p>
+        </div>
+        <p class="journal-entry-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+        <p class="progress-badge">${progressText}</p>
+      </div>
+    </div>`;
+}
+
+function renderCurrently() {
+  const filters = getFilters('journal');
+  const list = items
+    .filter((i) => i.status === 'in_progress' && matches(i, filters))
+    .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+  const container = el('currentlyContainer');
+  const feed = el('currentlyFeed');
+  feed.innerHTML = list.map(currentlyEntryHtml).join('');
+  container.classList.toggle('hidden', list.length === 0);
+  feed.querySelectorAll('[data-item-id]').forEach((node) => {
+    node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
+  });
+}
+
 function renderJournal() {
   const filters = getFilters('journal');
   const list = items
     .filter((i) => i.status === 'completed' && matches(i, filters))
+    .filter((i) => journalSelectedTags.size === 0 || (i.tags || []).some((t) => journalSelectedTags.has(t)))
     .sort((a, b) => new Date(b.date_completed || b.updated_at || 0) - new Date(a.date_completed || a.updated_at || 0));
   const feed = el('journalFeed');
   feed.innerHTML = list.map(journalEntryHtml).join('');
@@ -197,6 +282,7 @@ function renderJournal() {
   feed.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
+  renderCurrently();
 }
 
 function wireChipGroup(containerId, onChange) {
@@ -215,6 +301,48 @@ el('wishlistFilter').addEventListener('input', renderWishlist);
 wireChipGroup('wishlistTypeChips', renderWishlist);
 el('journalFilter').addEventListener('input', renderJournal);
 wireChipGroup('journalTypeChips', renderJournal);
+
+el('wishlistShortlistFilterBtn').addEventListener('click', () => {
+  wishlistShortlistOnly = !wishlistShortlistOnly;
+  el('wishlistShortlistFilterBtn').classList.toggle('active', wishlistShortlistOnly);
+  renderWishlist();
+});
+
+function renderJournalTagDropdown() {
+  const allTags = Array.from(new Set(items.filter((i) => i.status === 'completed').flatMap((i) => i.tags || []))).sort();
+  const dropdown = el('journalTagFilterDropdown');
+  if (!allTags.length) {
+    dropdown.innerHTML = `<p class="tag-filter-empty">No tags yet.</p>`;
+    return;
+  }
+  dropdown.innerHTML = allTags
+    .map(
+      (t) =>
+        `<label class="tag-filter-option"><input type="checkbox" value="${escapeHtml(t)}" ${journalSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`
+    )
+    .join('');
+  dropdown.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) journalSelectedTags.add(cb.value);
+      else journalSelectedTags.delete(cb.value);
+      el('journalTagFilterBtn').classList.toggle('active', journalSelectedTags.size > 0);
+      renderJournal();
+    });
+  });
+}
+
+el('journalTagFilterBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  renderJournalTagDropdown();
+  el('journalTagFilterDropdown').classList.toggle('hidden');
+});
+
+document.addEventListener('click', (e) => {
+  const dropdown = el('journalTagFilterDropdown');
+  if (!dropdown.classList.contains('hidden') && !e.target.closest('.tag-filter-wrap')) {
+    dropdown.classList.add('hidden');
+  }
+});
 
 // ---------- Stars widget ----------
 
@@ -275,16 +403,22 @@ function openEditModal(item) {
     </div>
     ${externalLinkHtml(item)}
     ${item.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(item.description)}</p>` : ''}
+    ${
+      item.status === 'wishlist' && PROGRESS_TYPES.includes(item.media_type)
+        ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:16px;">${item.media_type === 'book' ? '📖 Start Reading' : '📺 Start Watching'}</button>`
+        : ''
+    }
+    ${progressFieldHtml(item)}
     <div class="field">
       <label>Your rating</label>
       ${starsEditableHtml('editStars', item.rating)}
-      <p style="font-size:12px;color:var(--text-tertiary);margin-top:6px;">${item.status === 'wishlist' ? 'Rate it to move it to your journal.' : 'Clear the rating to move this back to your wishlist.'}</p>
+      <p style="font-size:12px;color:var(--text-tertiary);margin-top:6px;">${ratingHintText(item)}</p>
     </div>
-    <div class="field${item.status === 'completed' ? ' hidden' : ''}" id="wishlistTagField">
+    <div class="field${item.rating > 0 || item.status !== 'wishlist' ? ' hidden' : ''}" id="wishlistTagField">
       <label>Tags</label>
       ${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, item.tags || [])}
     </div>
-    <div class="field${item.status === 'wishlist' ? ' hidden' : ''}" id="reactionTagField">
+    <div class="field${item.rating > 0 ? '' : ' hidden'}" id="reactionTagField">
       <label>Tags</label>
       ${tagChipsHtml('editReactionTagChips', REACTION_TAGS[item.media_type] || REACTION_TAGS.other, item.tags || [])}
     </div>
@@ -301,10 +435,32 @@ function openEditModal(item) {
   wireTagChips('editWishlistTagChips');
   wireTagChips('editReactionTagChips');
   wireStars('editStars', (rating) => {
-    el('wishlistTagField').classList.toggle('hidden', rating > 0);
+    el('wishlistTagField').classList.toggle('hidden', !(rating === 0 && item.status === 'wishlist'));
     el('reactionTagField').classList.toggle('hidden', rating === 0);
   });
   el('modalCloseBtn').addEventListener('click', closeModal);
+
+  if (item.status === 'in_progress' && item.media_type === 'book') {
+    el('editProgressPercent').addEventListener('input', (e) => {
+      el('editProgressPercentLabel').textContent = e.target.value + '%';
+    });
+  }
+
+  const startBtn = el('startProgressBtn');
+  if (startBtn) {
+    startBtn.addEventListener('click', async () => {
+      const patch =
+        item.media_type === 'book'
+          ? { status: 'in_progress', progress_percent: 0 }
+          : { status: 'in_progress', progress_season: 1, progress_episode: 1 };
+      const updated = await store.updateItem(item.id, patch);
+      const idx = items.findIndex((i) => i.id === item.id);
+      items[idx] = updated;
+      renderWishlist();
+      renderJournal();
+      closeModal();
+    });
+  }
 
   el('deleteBtn').addEventListener('click', async () => {
     if (!confirm(`Remove "${item.title}" from your ${item.status === 'wishlist' ? 'wishlist' : 'journal'}?`)) return;
@@ -317,13 +473,23 @@ function openEditModal(item) {
 
   el('saveBtn').addEventListener('click', async () => {
     const rating = getStarsValue('editStars');
+    const status = rating > 0 ? 'completed' : hasProgress(item) ? 'in_progress' : 'wishlist';
     const patch = {
       notes: el('editNotes').value.trim() || null,
       rating: rating || null,
-      status: rating > 0 ? 'completed' : 'wishlist',
+      status,
       date_completed: rating > 0 ? item.date_completed || new Date().toISOString() : null,
       tags: rating > 0 ? getActiveChipValues('editReactionTagChips') : getActiveChipValues('editWishlistTagChips'),
     };
+    if (item.status === 'in_progress') {
+      if (item.media_type === 'book' && el('editProgressPercent')) {
+        patch.progress_percent = parseInt(el('editProgressPercent').value, 10) || 0;
+      }
+      if (item.media_type === 'tv' && el('editProgressSeason')) {
+        patch.progress_season = parseInt(el('editProgressSeason').value, 10) || 1;
+        patch.progress_episode = parseInt(el('editProgressEpisode').value, 10) || 1;
+      }
+    }
     const updated = await store.updateItem(item.id, patch);
     const idx = items.findIndex((i) => i.id === item.id);
     items[idx] = updated;
@@ -448,6 +614,7 @@ el('manualAddBtn').addEventListener('click', () => openAddModal({}));
 async function runDiscoverSearch() {
   const query = el('discoverQuery').value.trim();
   if (!query) return;
+  el('tab-discover').classList.remove('discover-empty');
   const type = el('discoverTypeChips').dataset.value;
   const btn = el('discoverSearchBtn');
   btn.disabled = true;
