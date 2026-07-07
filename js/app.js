@@ -129,6 +129,30 @@ function externalLinkHtml(item) {
   return `<a href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
 }
 
+function descriptionHtml(text, id) {
+  if (!text) return '';
+  return `
+    <div class="field">
+      <p class="modal-description" id="${id}">${escapeHtml(text)}</p>
+      <button type="button" class="view-more-btn hidden" id="${id}Toggle">View more</button>
+    </div>`;
+}
+
+function wireDescriptionToggle(id) {
+  const descEl = el(id);
+  const toggleBtn = el(id + 'Toggle');
+  if (!descEl || !toggleBtn) return;
+  requestAnimationFrame(() => {
+    if (descEl.scrollHeight > descEl.clientHeight + 1) {
+      toggleBtn.classList.remove('hidden');
+    }
+  });
+  toggleBtn.addEventListener('click', () => {
+    const expanded = descEl.classList.toggle('expanded');
+    toggleBtn.textContent = expanded ? 'View less' : 'View more';
+  });
+}
+
 function tagPillsHtml(item) {
   if (!item.tags || !item.tags.length) return '';
   return `<div class="item-tags">${item.tags.map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`;
@@ -230,7 +254,8 @@ function progressFieldHtml(item) {
         <label>Progress</label>
         <div class="progress-row">
           <input type="range" id="editProgressPercent" min="0" max="100" step="1" value="${pct}">
-          <span id="editProgressPercentLabel">${pct}%</span>
+          <input type="number" id="editProgressPercentNumber" min="0" max="100" value="${pct}">
+          <span class="progress-subtext">%</span>
         </div>
       </div>`;
   }
@@ -347,10 +372,23 @@ function renderWishlist() {
 }
 
 function currentlyEntryHtml(item) {
-  const progressText =
-    item.media_type === 'book'
-      ? `${item.progress_percent || 0}% done`
-      : `S${item.progress_season || 1} · E${item.progress_episode || 1}`;
+  if (item.media_type === 'book') {
+    const pct = item.progress_percent || 0;
+    return `
+      <div class="currently-card glass" data-item-id="${item.id}">
+        <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+        ${posterOrEmoji(item, 'currently-card-poster')}
+        <div class="card-body">
+          <p class="card-title">${escapeHtml(item.title)}</p>
+          <input type="range" class="currently-progress-slider" min="0" max="100" value="${pct}" data-progress-id="${item.id}">
+          <div class="currently-progress-row">
+            <input type="number" class="currently-progress-number" min="0" max="100" value="${pct}" data-progress-number-id="${item.id}">
+            <span class="progress-subtext">%</span>
+          </div>
+        </div>
+      </div>`;
+  }
+  const progressText = `S${item.progress_season || 1} · E${item.progress_episode || 1}`;
   return `
     <div class="currently-card glass" data-item-id="${item.id}">
       <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
@@ -358,7 +396,7 @@ function currentlyEntryHtml(item) {
       <div class="card-body">
         <p class="card-title">${escapeHtml(item.title)}</p>
         <p class="progress-badge">${progressText}</p>
-        ${item.media_type === 'tv' ? `<button type="button" class="btn-secondary next-episode-btn" data-next-episode-id="${item.id}">Next Episode</button>` : ''}
+        <button type="button" class="btn-secondary next-episode-btn" data-next-episode-id="${item.id}">Next Episode</button>
       </div>
     </div>`;
 }
@@ -381,6 +419,41 @@ function renderCurrently() {
       const id = btn.dataset.nextEpisodeId;
       const current = items.find((i) => i.id === id);
       const updated = await store.updateItem(id, { progress_episode: (current.progress_episode || 1) + 1 });
+      const idx = items.findIndex((i) => i.id === id);
+      items[idx] = updated;
+      renderCurrently();
+    });
+  });
+
+  const clampPct = (v) => Math.min(100, Math.max(0, v));
+
+  feed.querySelectorAll('.currently-progress-slider').forEach((slider) => {
+    slider.addEventListener('click', (e) => e.stopPropagation());
+    const id = slider.dataset.progressId;
+    const number = feed.querySelector(`.currently-progress-number[data-progress-number-id="${id}"]`);
+    slider.addEventListener('input', () => {
+      number.value = slider.value;
+    });
+    slider.addEventListener('change', async () => {
+      const updated = await store.updateItem(id, { progress_percent: clampPct(parseInt(slider.value, 10) || 0) });
+      const idx = items.findIndex((i) => i.id === id);
+      items[idx] = updated;
+      renderCurrently();
+    });
+  });
+
+  feed.querySelectorAll('.currently-progress-number').forEach((number) => {
+    number.addEventListener('click', (e) => e.stopPropagation());
+    const id = number.dataset.progressNumberId;
+    const slider = feed.querySelector(`.currently-progress-slider[data-progress-id="${id}"]`);
+    number.addEventListener('input', () => {
+      slider.value = clampPct(parseInt(number.value, 10) || 0);
+    });
+    number.addEventListener('change', async () => {
+      const v = clampPct(parseInt(number.value, 10) || 0);
+      number.value = v;
+      slider.value = v;
+      const updated = await store.updateItem(id, { progress_percent: v });
       const idx = items.findIndex((i) => i.id === id);
       items[idx] = updated;
       renderCurrently();
@@ -518,7 +591,7 @@ function openEditModal(item) {
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     ${externalLinkHtml(current)}
-    ${current.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(current.description)}</p>` : ''}
+    ${descriptionHtml(current.description, 'editDescription')}
     ${
       current.status === 'wishlist' && PROGRESS_TYPES.includes(current.media_type)
         ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:12px;">${current.media_type === 'book' ? '📖 Start Reading' : '📺 Start Watching'}</button>`
@@ -549,6 +622,7 @@ function openEditModal(item) {
     </div>
   `;
   openModalWithContent(html);
+  wireDescriptionToggle('editDescription');
   el('modalCloseBtn').addEventListener('click', closeModal);
 
   async function persist(patch) {
@@ -563,11 +637,24 @@ function openEditModal(item) {
 
   if (current.status === 'in_progress' && current.media_type === 'book') {
     const slider = el('editProgressPercent');
+    const number = el('editProgressPercentNumber');
+    const clampPct = (v) => Math.min(100, Math.max(0, v));
+
     slider.addEventListener('input', (e) => {
-      el('editProgressPercentLabel').textContent = e.target.value + '%';
+      number.value = e.target.value;
     });
     slider.addEventListener('change', (e) => {
-      persist({ progress_percent: parseInt(e.target.value, 10) || 0 });
+      persist({ progress_percent: clampPct(parseInt(e.target.value, 10) || 0) });
+    });
+
+    number.addEventListener('input', (e) => {
+      slider.value = clampPct(parseInt(e.target.value, 10) || 0);
+    });
+    number.addEventListener('change', (e) => {
+      const v = clampPct(parseInt(e.target.value, 10) || 0);
+      number.value = v;
+      slider.value = v;
+      persist({ progress_percent: v });
     });
   }
   if (current.status === 'in_progress' && current.media_type === 'tv') {
@@ -699,7 +786,7 @@ function openAddModal(prefill = {}) {
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     ${externalLinkHtml(prefill)}
-    ${prefill.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(prefill.description)}</p>` : ''}
+    ${descriptionHtml(prefill.description, 'addDescription')}
     <div class="field">
       <label for="addTitle">Title</label>
       <input type="text" id="addTitle" value="${escapeHtml(prefill.title || '')}" required>
@@ -725,6 +812,7 @@ function openAddModal(prefill = {}) {
     </div>
   `;
   openModalWithContent(html);
+  wireDescriptionToggle('addDescription');
   el('modalCloseBtn').addEventListener('click', closeModal);
 
   function currentDraft() {
