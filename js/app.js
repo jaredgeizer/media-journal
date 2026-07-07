@@ -81,6 +81,35 @@ el('discoverFabBtn').addEventListener('click', () => {
   el('discoverQuery').focus();
 });
 
+// ---------- Responsive nav placement ----------
+// On desktop, the Journal/Wishlist pills and the Discover + button live in
+// the header next to the title/account icon; on mobile they live in their
+// own fixed bottom bar. Physically relocate the nodes rather than
+// duplicating them, so all their listeners keep working either way.
+
+const desktopNavQuery = window.matchMedia('(min-width: 681px)');
+
+function applyResponsiveNav(isDesktop) {
+  const pills = document.querySelector('.tabbar-pills');
+  const fab = el('discoverFabBtn');
+  const nav = document.querySelector('.tabbar');
+  const topbarLeft = el('topbarLeft');
+  const topbarRight = el('topbarRight');
+
+  if (isDesktop) {
+    topbarLeft.appendChild(pills);
+    topbarRight.insertBefore(fab, el('accountMenu'));
+    nav.classList.add('hidden');
+  } else {
+    nav.insertBefore(pills, nav.firstChild);
+    nav.appendChild(fab);
+    nav.classList.remove('hidden');
+  }
+}
+
+applyResponsiveNav(desktopNavQuery.matches);
+desktopNavQuery.addEventListener('change', (e) => applyResponsiveNav(e.matches));
+
 // ---------- Rendering helpers ----------
 
 function posterOrEmoji(item, sizeClass = 'card-poster') {
@@ -111,9 +140,12 @@ function tagChipsHtml(id, options, selected) {
     .join('')}</div>`;
 }
 
-function wireTagChips(id) {
+function wireTagChips(id, onChange) {
   el(id).querySelectorAll('.chip').forEach((chip) => {
-    chip.addEventListener('click', () => chip.classList.toggle('active'));
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+      if (onChange) onChange();
+    });
   });
 }
 
@@ -149,8 +181,8 @@ function reactionTagsFieldHtml(id, mediaType, selected, extraClass = '') {
     </div>`;
 }
 
-function wireReactionTagsField(id) {
-  wireTagChips(id);
+function wireReactionTagsField(id, onChange) {
+  wireTagChips(id, onChange);
   const container = el(id);
   const input = el(id + 'NewInput');
   const addTag = () => {
@@ -165,10 +197,14 @@ function wireReactionTagsField(id) {
       chip.className = 'chip active';
       chip.dataset.value = val;
       chip.textContent = val;
-      chip.addEventListener('click', () => chip.classList.toggle('active'));
+      chip.addEventListener('click', () => {
+        chip.classList.toggle('active');
+        if (onChange) onChange();
+      });
       container.appendChild(chip);
     }
     input.value = '';
+    if (onChange) onChange();
   };
   el(id + 'AddBtn').addEventListener('click', addTag);
   input.addEventListener('keydown', (e) => {
@@ -213,14 +249,6 @@ function progressFieldHtml(item) {
       </div>`;
   }
   return '';
-}
-
-function ratingHintText(item) {
-  if (item.status === 'wishlist') return 'Rate it to move it to your journal.';
-  if (item.status === 'in_progress') return 'Rate it to finish and move it to your journal.';
-  return hasProgress(item)
-    ? 'Clear the rating to go back to Currently Reading/Watching.'
-    : 'Clear the rating to move this back to your wishlist.';
 }
 
 function cardHtml(item) {
@@ -461,10 +489,6 @@ function wireStars(id, onChange) {
   });
 }
 
-function getStarsValue(id) {
-  return parseInt(el(id).dataset.rating, 10) || 0;
-}
-
 // ---------- Modal ----------
 
 function closeModal() {
@@ -482,54 +506,76 @@ function openModalWithContent(innerHtml) {
 }
 
 function openEditModal(item) {
+  let current = item;
+
   const html = `
     <div class="modal-header">
-      ${posterOrEmoji(item, 'modal-poster')}
+      ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
-        <p class="modal-title">${escapeHtml(item.title)}</p>
-        <p class="modal-subtitle">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}${item.year ? ' · ' + escapeHtml(item.year) : ''}</p>
+        <p class="modal-title">${escapeHtml(current.title)}</p>
+        <p class="modal-subtitle">${TYPE_EMOJI[current.media_type]} ${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    ${externalLinkHtml(item)}
-    ${item.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(item.description)}</p>` : ''}
+    ${externalLinkHtml(current)}
+    ${current.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(current.description)}</p>` : ''}
     ${
-      item.status === 'wishlist' && PROGRESS_TYPES.includes(item.media_type)
-        ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:16px;">${item.media_type === 'book' ? '📖 Start Reading' : '📺 Start Watching'}</button>`
+      current.status === 'wishlist' && PROGRESS_TYPES.includes(current.media_type)
+        ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:12px;">${current.media_type === 'book' ? '📖 Start Reading' : '📺 Start Watching'}</button>`
         : ''
     }
-    ${progressFieldHtml(item)}
-    <div class="field">
-      <label>Your rating</label>
-      ${starsEditableHtml('editStars', item.rating)}
-      <p style="font-size:12px;color:var(--text-tertiary);margin-top:6px;">${ratingHintText(item)}</p>
-    </div>
-    <div class="field${item.rating > 0 || item.status !== 'wishlist' ? ' hidden' : ''}" id="wishlistTagField">
-      <label>Tags</label>
-      ${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, item.tags || [])}
-    </div>
-    ${reactionTagsFieldHtml('editReactionTagChips', item.media_type, item.tags || [], item.rating > 0 ? '' : 'hidden')}
-    <div class="field">
-      <label for="editNotes">Notes</label>
-      <textarea id="editNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(item.notes || '')}</textarea>
-    </div>
+    ${progressFieldHtml(current)}
+    ${
+      current.status === 'wishlist'
+        ? `<div class="field" id="wishlistTagField"><label>Tags</label>${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, current.tags || [])}</div>`
+        : ''
+    }
+    ${
+      current.status === 'completed'
+        ? `
+          <div class="field">
+            <label>Your review</label>
+            <div class="card-stars" style="font-size:18px;">${'★'.repeat(current.rating || 0)}${'☆'.repeat(5 - (current.rating || 0))}</div>
+            ${tagPillsHtml(current)}
+            ${current.notes ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin:8px 0 0;">${escapeHtml(current.notes)}</p>` : ''}
+            <button type="button" class="btn-secondary" id="editReviewBtn" style="width:100%;margin-top:12px;">Edit Review</button>
+            <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Wishlist'}</button>
+          </div>
+        `
+        : `<button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Mark as ${COMPLETED_VERB[current.media_type] || 'Done'}</button>`
+    }
     <div class="modal-actions">
-      <button class="btn-danger" id="deleteBtn">Remove</button>
-      <button class="btn-primary" id="saveBtn">Save</button>
+      <button class="btn-danger" id="deleteBtn" style="width:100%;">Remove</button>
     </div>
   `;
   openModalWithContent(html);
-  wireTagChips('editWishlistTagChips');
-  wireReactionTagsField('editReactionTagChips');
-  wireStars('editStars', (rating) => {
-    el('wishlistTagField').classList.toggle('hidden', !(rating === 0 && item.status === 'wishlist'));
-    el('editReactionTagChipsField').classList.toggle('hidden', rating === 0);
-  });
   el('modalCloseBtn').addEventListener('click', closeModal);
 
-  if (item.status === 'in_progress' && item.media_type === 'book') {
-    el('editProgressPercent').addEventListener('input', (e) => {
+  async function persist(patch) {
+    const updated = await store.updateItem(current.id, patch);
+    current = updated;
+    const idx = items.findIndex((i) => i.id === current.id);
+    if (idx !== -1) items[idx] = updated;
+    renderWishlist();
+    renderJournal();
+    return updated;
+  }
+
+  if (current.status === 'in_progress' && current.media_type === 'book') {
+    const slider = el('editProgressPercent');
+    slider.addEventListener('input', (e) => {
       el('editProgressPercentLabel').textContent = e.target.value + '%';
+    });
+    slider.addEventListener('change', (e) => {
+      persist({ progress_percent: parseInt(e.target.value, 10) || 0 });
+    });
+  }
+  if (current.status === 'in_progress' && current.media_type === 'tv') {
+    el('editProgressSeason').addEventListener('change', (e) => {
+      persist({ progress_season: parseInt(e.target.value, 10) || 1 });
+    });
+    el('editProgressEpisode').addEventListener('change', (e) => {
+      persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
     });
   }
 
@@ -537,99 +583,104 @@ function openEditModal(item) {
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
       const patch =
-        item.media_type === 'book'
+        current.media_type === 'book'
           ? { status: 'in_progress', progress_percent: 0 }
           : { status: 'in_progress', progress_season: 1, progress_episode: 1 };
-      const updated = await store.updateItem(item.id, patch);
-      const idx = items.findIndex((i) => i.id === item.id);
-      items[idx] = updated;
-      renderWishlist();
-      renderJournal();
+      await persist(patch);
+      closeModal();
+      document.querySelector('.tab[data-tab="journal"]').click();
+    });
+  }
+
+  if (current.status === 'wishlist') {
+    wireTagChips('editWishlistTagChips', () => {
+      persist({ tags: getActiveChipValues('editWishlistTagChips') });
+    });
+  }
+
+  const markBtn = el('markWatchedBtn');
+  if (markBtn) {
+    markBtn.addEventListener('click', async () => {
+      const updated = await persist({ status: 'completed', date_completed: current.date_completed || new Date().toISOString() });
+      document.querySelector('.tab[data-tab="journal"]').click();
+      openReviewModal(updated);
+    });
+  }
+
+  const editReviewBtn = el('editReviewBtn');
+  if (editReviewBtn) {
+    editReviewBtn.addEventListener('click', () => openReviewModal(current));
+  }
+
+  const unmarkBtn = el('unmarkBtn');
+  if (unmarkBtn) {
+    unmarkBtn.addEventListener('click', async () => {
+      await persist({
+        status: hasProgress(current) ? 'in_progress' : 'wishlist',
+        date_completed: null,
+        rating: null,
+      });
       closeModal();
     });
   }
 
   el('deleteBtn').addEventListener('click', async () => {
-    if (!confirm(`Remove "${item.title}" from your ${item.status === 'wishlist' ? 'wishlist' : 'journal'}?`)) return;
-    await store.deleteItem(item.id);
-    items = items.filter((i) => i.id !== item.id);
-    renderWishlist();
-    renderJournal();
-    closeModal();
-  });
-
-  el('saveBtn').addEventListener('click', async () => {
-    const rating = getStarsValue('editStars');
-    const status = rating > 0 ? 'completed' : hasProgress(item) ? 'in_progress' : 'wishlist';
-    const patch = {
-      notes: el('editNotes').value.trim() || null,
-      rating: rating || null,
-      status,
-      date_completed: rating > 0 ? item.date_completed || new Date().toISOString() : null,
-      tags: rating > 0 ? getActiveChipValues('editReactionTagChips') : getActiveChipValues('editWishlistTagChips'),
-    };
-    if (item.status === 'in_progress') {
-      if (item.media_type === 'book' && el('editProgressPercent')) {
-        patch.progress_percent = parseInt(el('editProgressPercent').value, 10) || 0;
-      }
-      if (item.media_type === 'tv' && el('editProgressSeason')) {
-        patch.progress_season = parseInt(el('editProgressSeason').value, 10) || 1;
-        patch.progress_episode = parseInt(el('editProgressEpisode').value, 10) || 1;
-      }
-    }
-    const updated = await store.updateItem(item.id, patch);
-    const idx = items.findIndex((i) => i.id === item.id);
-    items[idx] = updated;
+    if (!confirm(`Remove "${current.title}" from your ${current.status === 'wishlist' ? 'wishlist' : 'journal'}?`)) return;
+    await store.deleteItem(current.id);
+    items = items.filter((i) => i.id !== current.id);
     renderWishlist();
     renderJournal();
     closeModal();
   });
 }
 
-function openReviewModal(draft) {
+function openReviewModal(item) {
+  let current = item;
+
   const html = `
     <div class="modal-header">
-      ${posterOrEmoji(draft, 'modal-poster')}
+      ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
-        <p class="modal-title">${escapeHtml(draft.title)}</p>
-        <p class="modal-subtitle">${TYPE_EMOJI[draft.media_type]} ${TYPE_LABEL[draft.media_type]}${draft.creator ? ' · ' + escapeHtml(draft.creator) : ''}${draft.year ? ' · ' + escapeHtml(draft.year) : ''}</p>
+        <p class="modal-title">${escapeHtml(current.title)}</p>
+        <p class="modal-subtitle">${TYPE_EMOJI[current.media_type]} ${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    ${externalLinkHtml(draft)}
+    ${externalLinkHtml(current)}
     <div class="field">
       <label>Your rating</label>
-      ${starsEditableHtml('reviewStars', 0)}
+      ${starsEditableHtml('reviewStars', current.rating)}
     </div>
-    ${reactionTagsFieldHtml('reviewTagChips', draft.media_type, [])}
+    ${reactionTagsFieldHtml('reviewTagChips', current.media_type, current.tags || [])}
     <div class="field">
       <label for="reviewNotes">Notes</label>
-      <textarea id="reviewNotes" placeholder="Thoughts, quotes, where you left off…"></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="reviewSaveBtn" style="width:100%">Save to Journal</button>
+      <textarea id="reviewNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(current.notes || '')}</textarea>
     </div>
   `;
   openModalWithContent(html);
-  wireStars('reviewStars');
-  wireReactionTagsField('reviewTagChips');
   el('modalCloseBtn').addEventListener('click', closeModal);
 
-  el('reviewSaveBtn').addEventListener('click', async () => {
-    const payload = {
-      ...draft,
-      status: 'completed',
-      rating: getStarsValue('reviewStars') || null,
-      notes: el('reviewNotes').value.trim() || null,
-      date_completed: new Date().toISOString(),
-      tags: getActiveChipValues('reviewTagChips'),
-    };
-    const saved = await store.addItem(payload);
-    items.unshift(saved);
+  async function persist(patch) {
+    const updated = await store.updateItem(current.id, patch);
+    current = updated;
+    const idx = items.findIndex((i) => i.id === current.id);
+    if (idx !== -1) items[idx] = updated;
     renderWishlist();
     renderJournal();
-    closeModal();
-    document.querySelector('.tab[data-tab="journal"]').click();
+  }
+
+  wireStars('reviewStars', (rating) => {
+    persist({ rating: rating || null });
+  });
+
+  wireReactionTagsField('reviewTagChips', () => {
+    persist({ tags: getActiveChipValues('reviewTagChips') });
+  });
+
+  el('reviewNotes').addEventListener('blur', () => {
+    const val = el('reviewNotes').value.trim() || null;
+    if (val === current.notes) return;
+    persist({ notes: val });
   });
 }
 
@@ -729,13 +780,25 @@ function openAddModal(prefill = {}) {
     document.querySelector('.tab[data-tab="journal"]').click();
   });
 
-  el('addWatchedBtn').addEventListener('click', () => {
+  el('addWatchedBtn').addEventListener('click', async () => {
     const draft = currentDraft();
     if (!draft.title) {
       el('addTitle').focus();
       return;
     }
-    openReviewModal(draft);
+    const saved = await store.addItem({
+      ...draft,
+      status: 'completed',
+      rating: null,
+      tags: [],
+      notes: null,
+      date_completed: new Date().toISOString(),
+    });
+    items.unshift(saved);
+    renderWishlist();
+    renderJournal();
+    document.querySelector('.tab[data-tab="journal"]').click();
+    openReviewModal(saved);
   });
 }
 

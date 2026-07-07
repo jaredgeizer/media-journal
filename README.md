@@ -15,25 +15,30 @@ desktop.
   podcasts (iTunes) and add results with one tap. Anything else (plays,
   restaurants, etc.) can be added by hand.
 
-Rating an item automatically moves it from Wishlist to Journal. Clearing
-an item's rating moves it back. Both Wishlist and Journal have their own
-search/filter bar with tappable chips to narrow by media type.
+Clicking any item opens a modal with a **Mark as Watched/Read** button
+(everything except that lives in a second "review" step). That review
+modal has no Save button — the star rating and tags save the instant you
+tap them, and notes save automatically when you click away from the
+textarea. An already-reviewed item shows its rating/tags/notes as a
+summary with **Edit Review** and **Move back to Wishlist/Currently**
+actions. Both Wishlist and Journal have their own search/filter bar with
+tappable chips to narrow by media type.
 
 Items can be tagged: wishlist items get a single **⭐ Shortlist** tag to
-flag your top picks. Once something's marked watched/read you can
-multi-select tags on it — **Favorite** is always offered, and beyond
-that tags are entirely user-defined: type a new one to create it, and
-it becomes a suggested chip for other items of that same media type
-going forward. Tags are searchable in the filter bar, and the Journal
-has a dedicated Tags filter (multi-select dropdown of every tag you've
-used).
+flag your top picks. In the review modal you can multi-select tags —
+**Favorite** is always offered, and beyond that tags are entirely
+user-defined: type a new one to create it, and it becomes a suggested
+chip for other items of that same media type going forward. Tags are
+searchable in the filter bar, and the Journal has a dedicated Tags
+filter (multi-select dropdown of every tag you've used).
 
 From Discover, adding a result gives three options: **Add to Wishlist**,
-**Mark as Watched/Read** (opens a review step for rating, tags, and
-notes), or — for books and TV shows only — **Currently Reading/Watching**,
-which files it at the top of the Journal with editable progress (a
-percent-complete for books, season/episode for TV) until you rate it,
-which finishes and moves it into the journal feed below.
+**Mark as Watched/Read** (creates the item and opens the review modal),
+or — for books and TV shows only — **Currently Reading/Watching**, which
+files it at the top of the Journal with editable progress (a
+percent-complete for books, season/episode for TV — TV cards also get a
+one-tap **Next Episode** button) until you mark it watched/read, which
+moves it into the journal feed below.
 
 ## Running it locally (Demo Mode)
 

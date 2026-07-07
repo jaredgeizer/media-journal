@@ -126,10 +126,12 @@ button, input, select, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
+}
+
+.topbar-left, .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .brand {
@@ -330,6 +332,13 @@ main {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 18px;
+}
+
+.chip-divider {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  align-self: center;
+  padding: 0 2px;
 }
 
 .chip, .filter-toggle {
@@ -882,12 +891,26 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
     max-width: none;
     margin: 0;
     padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-    background: var(--glass-bg-strong);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    border-top: 1px solid var(--glass-border);
     z-index: 40;
   }
 
   main { padding-bottom: 130px; }
+
+  #journalTypeChips, #wishlistTypeChips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  #journalTypeChips .chip,
+  #wishlistTypeChips .chip,
+  #journalTypeChips .filter-toggle,
+  #wishlistTypeChips .filter-toggle,
+  #journalTypeChips .tag-filter-wrap,
+  #wishlistTypeChips .tag-filter-wrap,
+  #journalTypeChips .chip-divider,
+  #wishlistTypeChips .chip-divider {
+    flex: 0 0 auto;
+  }
 }

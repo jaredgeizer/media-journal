@@ -10,12 +10,16 @@
 <body>
 <div class="bg-mesh"></div>
 
-<header class="topbar glass">
-  <div class="brand">Media Journal</div>
-  <div class="account-menu hidden" id="accountMenu">
-    <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
-    <div class="account-dropdown hidden" id="accountDropdown">
-      <button type="button" class="account-dropdown-item" id="signOutBtn">Sign out</button>
+<header class="topbar">
+  <div class="topbar-left" id="topbarLeft">
+    <div class="brand">Media Journal</div>
+  </div>
+  <div class="topbar-right" id="topbarRight">
+    <div class="account-menu hidden" id="accountMenu">
+      <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
+      <div class="account-dropdown hidden" id="accountDropdown">
+        <button type="button" class="account-dropdown-item" id="signOutBtn">Sign out</button>
+      </div>
     </div>
   </div>
 </header>
@@ -43,6 +47,7 @@
         <button type="button" class="filter-toggle" id="journalTagFilterBtn">🏷️ Tags</button>
         <div class="tag-filter-dropdown hidden" id="journalTagFilterDropdown"></div>
       </div>
+      <span class="chip-divider">|</span>
       <button type="button" class="chip active" data-value="all">All</button>
       <button type="button" class="chip" data-value="movie">🍿 Movies</button>
       <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
@@ -67,6 +72,7 @@
     </div>
     <div class="chip-row" id="wishlistTypeChips" data-value="all">
       <button type="button" class="filter-toggle" id="wishlistShortlistFilterBtn">⭐ Shortlist</button>
+      <span class="chip-divider">|</span>
       <button type="button" class="chip active" data-value="all">All</button>
       <button type="button" class="chip" data-value="movie">🍿 Movies</button>
       <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
