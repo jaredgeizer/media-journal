@@ -24,6 +24,7 @@ create table if not exists public.items (
   status         text not null default 'wishlist' check (status in ('wishlist', 'completed')),
   rating         smallint check (rating between 1 and 5),
   notes          text,
+  tags           text[] not null default '{}',
 
   date_added     timestamptz not null default now(),
   date_completed timestamptz,

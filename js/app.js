@@ -5,6 +5,17 @@ const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️'
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
 const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
 
+const WISHLIST_TAGS = ['⭐ Shortlist'];
+const REACTION_TAGS = {
+  movie: ['Favorite', 'Would Rewatch', 'Recommend', 'Meh', 'Disappointing'],
+  tv: ['Favorite', 'Would Rewatch', 'Recommend', 'Meh', 'Disappointing'],
+  book: ['Favorite', 'Would Reread', 'Recommend', 'Meh', 'Disappointing'],
+  podcast: ['Favorite', 'Would Relisten', 'Recommend', 'Meh', 'Disappointing'],
+  play: ['Favorite', 'Would See Again', 'Recommend', 'Meh', 'Disappointing'],
+  restaurant: ['Favorite', 'Would Return', 'Recommend', 'Meh', 'Disappointing'],
+  other: ['Favorite', 'Recommend', 'Meh', 'Disappointing'],
+};
+
 const store = createStore();
 let items = [];
 
@@ -78,6 +89,27 @@ function externalLinkHtml(item) {
   return `<a href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
 }
 
+function tagPillsHtml(item) {
+  if (!item.tags || !item.tags.length) return '';
+  return `<div class="item-tags">${item.tags.map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`;
+}
+
+function tagChipsHtml(id, options, selected) {
+  return `<div class="chip-row" id="${id}">${options
+    .map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`)
+    .join('')}</div>`;
+}
+
+function wireTagChips(id) {
+  el(id).querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+}
+
+function getActiveChipValues(id) {
+  return Array.from(el(id).querySelectorAll('.chip.active')).map((c) => c.dataset.value);
+}
+
 function cardHtml(item) {
   return `
     <div class="card glass" data-item-id="${item.id}">
@@ -87,6 +119,7 @@ function cardHtml(item) {
         <p class="card-title">${escapeHtml(item.title)}</p>
         <p class="card-meta">${metaLine(item)}</p>
         ${item.rating ? `<div class="card-stars">${'★'.repeat(item.rating)}${'☆'.repeat(5 - item.rating)}</div>` : ''}
+        ${tagPillsHtml(item)}
       </div>
     </div>`;
 }
@@ -106,6 +139,7 @@ function journalEntryHtml(item) {
         </div>
         <p class="journal-entry-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
         <div class="card-stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</div>
+        ${tagPillsHtml(item)}
         ${item.notes ? `<p class="journal-entry-notes">${escapeHtml(item.notes)}</p>` : ''}
       </div>
     </div>`;
@@ -135,7 +169,7 @@ function getFilters(prefix) {
 function matches(item, { text, type }) {
   if (type !== 'all' && item.media_type !== type) return false;
   if (!text) return true;
-  const hay = [item.title, item.creator, item.notes].filter(Boolean).join(' ').toLowerCase();
+  const hay = [item.title, item.creator, item.notes, ...(item.tags || [])].filter(Boolean).join(' ').toLowerCase();
   return hay.includes(text);
 }
 
@@ -193,7 +227,7 @@ function starsEditableHtml(id, rating) {
   return html;
 }
 
-function wireStars(id) {
+function wireStars(id, onChange) {
   const container = el(id);
   container.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -204,6 +238,7 @@ function wireStars(id) {
       container.querySelectorAll('button').forEach((b) => {
         b.classList.toggle('filled', parseInt(b.dataset.value, 10) <= next);
       });
+      if (onChange) onChange(next);
     });
   });
 }
@@ -245,6 +280,14 @@ function openEditModal(item) {
       ${starsEditableHtml('editStars', item.rating)}
       <p style="font-size:12px;color:var(--text-tertiary);margin-top:6px;">${item.status === 'wishlist' ? 'Rate it to move it to your journal.' : 'Clear the rating to move this back to your wishlist.'}</p>
     </div>
+    <div class="field${item.status === 'completed' ? ' hidden' : ''}" id="wishlistTagField">
+      <label>Tags</label>
+      ${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, item.tags || [])}
+    </div>
+    <div class="field${item.status === 'wishlist' ? ' hidden' : ''}" id="reactionTagField">
+      <label>Tags</label>
+      ${tagChipsHtml('editReactionTagChips', REACTION_TAGS[item.media_type] || REACTION_TAGS.other, item.tags || [])}
+    </div>
     <div class="field">
       <label for="editNotes">Notes</label>
       <textarea id="editNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(item.notes || '')}</textarea>
@@ -255,7 +298,12 @@ function openEditModal(item) {
     </div>
   `;
   openModalWithContent(html);
-  wireStars('editStars');
+  wireTagChips('editWishlistTagChips');
+  wireTagChips('editReactionTagChips');
+  wireStars('editStars', (rating) => {
+    el('wishlistTagField').classList.toggle('hidden', rating > 0);
+    el('reactionTagField').classList.toggle('hidden', rating === 0);
+  });
   el('modalCloseBtn').addEventListener('click', closeModal);
 
   el('deleteBtn').addEventListener('click', async () => {
@@ -274,6 +322,7 @@ function openEditModal(item) {
       rating: rating || null,
       status: rating > 0 ? 'completed' : 'wishlist',
       date_completed: rating > 0 ? item.date_completed || new Date().toISOString() : null,
+      tags: rating > 0 ? getActiveChipValues('editReactionTagChips') : getActiveChipValues('editWishlistTagChips'),
     };
     const updated = await store.updateItem(item.id, patch);
     const idx = items.findIndex((i) => i.id === item.id);
@@ -321,10 +370,18 @@ function openAddModal(prefill = {}) {
       <input type="checkbox" id="alreadyDone" style="width:auto;">
       I've already experienced this
     </label>
+    <div class="field" id="wishlistTagField">
+      <label>Tags</label>
+      ${tagChipsHtml('wishlistTagChips', WISHLIST_TAGS, [])}
+    </div>
     <div id="ratingSection" class="hidden">
       <div class="field">
         <label>Your rating</label>
         ${starsEditableHtml('addStars', 0)}
+      </div>
+      <div class="field">
+        <label>Tags</label>
+        ${tagChipsHtml('reactionTagChips', REACTION_TAGS[prefill.media_type] || REACTION_TAGS.movie, [])}
       </div>
       <div class="field">
         <label for="addNotes">Notes</label>
@@ -337,9 +394,18 @@ function openAddModal(prefill = {}) {
   `;
   openModalWithContent(html);
   wireStars('addStars');
+  wireTagChips('wishlistTagChips');
+  wireTagChips('reactionTagChips');
   el('modalCloseBtn').addEventListener('click', closeModal);
   el('alreadyDone').addEventListener('change', (e) => {
-    el('ratingSection').classList.toggle('hidden', !e.target.checked);
+    const done = e.target.checked;
+    el('ratingSection').classList.toggle('hidden', !done);
+    el('wishlistTagField').classList.toggle('hidden', done);
+  });
+  el('addType').addEventListener('change', () => {
+    const options = REACTION_TAGS[el('addType').value] || REACTION_TAGS.movie;
+    el('reactionTagChips').outerHTML = tagChipsHtml('reactionTagChips', options, []);
+    wireTagChips('reactionTagChips');
   });
 
   el('addSaveBtn').addEventListener('click', async () => {
@@ -364,6 +430,7 @@ function openAddModal(prefill = {}) {
       rating: rating || null,
       notes: done ? el('addNotes').value.trim() || null : null,
       date_completed: done ? new Date().toISOString() : null,
+      tags: done ? getActiveChipValues('reactionTagChips') : getActiveChipValues('wishlistTagChips'),
     };
     const saved = await store.addItem(payload);
     items.unshift(saved);

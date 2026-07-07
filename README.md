@@ -17,7 +17,13 @@ desktop.
 
 Rating an item automatically moves it from Wishlist to Journal. Clearing
 an item's rating moves it back. Both Wishlist and Journal have their own
-search/filter bar.
+search/filter bar with tappable chips to narrow by media type.
+
+Items can be tagged: wishlist items get a single **⭐ Shortlist** tag to
+flag your top picks, and once something's marked watched/read you can
+multi-select "reaction" tags (Favorite, Would Rewatch, Recommend, Meh,
+etc.) — the exact wording adapts per media type (e.g. "Would Reread" for
+books). Tags are also searchable in the filter bar.
 
 ## Running it locally (Demo Mode)
 
@@ -69,6 +75,7 @@ but the simplest fix is to run just the new column(s). Currently:
 
 ```sql
 alter table public.items add column if not exists external_url text;
+alter table public.items add column if not exists tags text[] not null default '{}';
 ```
 
 ## Setting up movie & TV search (TMDb)
