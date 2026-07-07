@@ -8,15 +8,6 @@ const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast:
 
 const PROGRESS_TYPES = ['book', 'tv'];
 const WISHLIST_TAGS = ['⭐ Shortlist'];
-const REACTION_TAGS = {
-  movie: ['Favorite', 'Would Rewatch', 'Recommend', 'Meh', 'Disappointing'],
-  tv: ['Favorite', 'Would Rewatch', 'Recommend', 'Meh', 'Disappointing'],
-  book: ['Favorite', 'Would Reread', 'Recommend', 'Meh', 'Disappointing'],
-  podcast: ['Favorite', 'Would Relisten', 'Recommend', 'Meh', 'Disappointing'],
-  play: ['Favorite', 'Would See Again', 'Recommend', 'Meh', 'Disappointing'],
-  restaurant: ['Favorite', 'Would Return', 'Recommend', 'Meh', 'Disappointing'],
-  other: ['Favorite', 'Recommend', 'Meh', 'Disappointing'],
-};
 
 const store = createStore();
 let items = [];
@@ -116,6 +107,64 @@ function wireTagChips(id) {
 
 function getActiveChipValues(id) {
   return Array.from(el(id).querySelectorAll('.chip.active')).map((c) => c.dataset.value);
+}
+
+function tagPoolForType(mediaType) {
+  const used = new Set();
+  items.forEach((i) => {
+    if (i.media_type === mediaType) {
+      (i.tags || []).forEach((t) => {
+        if (t !== '⭐ Shortlist') used.add(t);
+      });
+    }
+  });
+  used.delete('Favorite');
+  return ['Favorite', ...Array.from(used).sort((a, b) => a.localeCompare(b))];
+}
+
+function reactionTagsFieldHtml(id, mediaType, selected, extraClass = '') {
+  const pool = tagPoolForType(mediaType);
+  return `
+    <div class="field${extraClass ? ' ' + extraClass : ''}" id="${id}Field">
+      <label>Tags</label>
+      <div class="chip-row" id="${id}">
+        ${pool.map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}
+      </div>
+      <div class="tag-add-row">
+        <input type="text" id="${id}NewInput" class="tag-add-input" placeholder="Add a tag…" maxlength="24">
+        <button type="button" class="btn-secondary tag-add-btn" id="${id}AddBtn">Add</button>
+      </div>
+    </div>`;
+}
+
+function wireReactionTagsField(id) {
+  wireTagChips(id);
+  const container = el(id);
+  const input = el(id + 'NewInput');
+  const addTag = () => {
+    const val = input.value.trim();
+    if (!val) return;
+    const existing = Array.from(container.querySelectorAll('.chip')).find((c) => c.dataset.value.toLowerCase() === val.toLowerCase());
+    if (existing) {
+      existing.classList.add('active');
+    } else {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'chip active';
+      chip.dataset.value = val;
+      chip.textContent = val;
+      chip.addEventListener('click', () => chip.classList.toggle('active'));
+      container.appendChild(chip);
+    }
+    input.value = '';
+  };
+  el(id + 'AddBtn').addEventListener('click', addTag);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTag();
+    }
+  });
 }
 
 function hasProgress(item) {
@@ -437,10 +486,7 @@ function openEditModal(item) {
       <label>Tags</label>
       ${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, item.tags || [])}
     </div>
-    <div class="field${item.rating > 0 ? '' : ' hidden'}" id="reactionTagField">
-      <label>Tags</label>
-      ${tagChipsHtml('editReactionTagChips', REACTION_TAGS[item.media_type] || REACTION_TAGS.other, item.tags || [])}
-    </div>
+    ${reactionTagsFieldHtml('editReactionTagChips', item.media_type, item.tags || [], item.rating > 0 ? '' : 'hidden')}
     <div class="field">
       <label for="editNotes">Notes</label>
       <textarea id="editNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(item.notes || '')}</textarea>
@@ -452,10 +498,10 @@ function openEditModal(item) {
   `;
   openModalWithContent(html);
   wireTagChips('editWishlistTagChips');
-  wireTagChips('editReactionTagChips');
+  wireReactionTagsField('editReactionTagChips');
   wireStars('editStars', (rating) => {
     el('wishlistTagField').classList.toggle('hidden', !(rating === 0 && item.status === 'wishlist'));
-    el('reactionTagField').classList.toggle('hidden', rating === 0);
+    el('editReactionTagChipsField').classList.toggle('hidden', rating === 0);
   });
   el('modalCloseBtn').addEventListener('click', closeModal);
 
@@ -518,6 +564,53 @@ function openEditModal(item) {
   });
 }
 
+function openReviewModal(draft) {
+  const html = `
+    <div class="modal-header">
+      ${posterOrEmoji(draft, 'modal-poster')}
+      <div style="flex:1">
+        <p class="modal-title">${escapeHtml(draft.title)}</p>
+        <p class="modal-subtitle">${TYPE_EMOJI[draft.media_type]} ${TYPE_LABEL[draft.media_type]}${draft.creator ? ' · ' + escapeHtml(draft.creator) : ''}${draft.year ? ' · ' + escapeHtml(draft.year) : ''}</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    ${externalLinkHtml(draft)}
+    <div class="field">
+      <label>Your rating</label>
+      ${starsEditableHtml('reviewStars', 0)}
+    </div>
+    ${reactionTagsFieldHtml('reviewTagChips', draft.media_type, [])}
+    <div class="field">
+      <label for="reviewNotes">Notes</label>
+      <textarea id="reviewNotes" placeholder="Thoughts, quotes, where you left off…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="reviewSaveBtn" style="width:100%">Save to Journal</button>
+    </div>
+  `;
+  openModalWithContent(html);
+  wireStars('reviewStars');
+  wireReactionTagsField('reviewTagChips');
+  el('modalCloseBtn').addEventListener('click', closeModal);
+
+  el('reviewSaveBtn').addEventListener('click', async () => {
+    const payload = {
+      ...draft,
+      status: 'completed',
+      rating: getStarsValue('reviewStars') || null,
+      notes: el('reviewNotes').value.trim() || null,
+      date_completed: new Date().toISOString(),
+      tags: getActiveChipValues('reviewTagChips'),
+    };
+    const saved = await store.addItem(payload);
+    items.unshift(saved);
+    renderWishlist();
+    renderJournal();
+    closeModal();
+    document.querySelector('.tab[data-tab="journal"]').click();
+  });
+}
+
 function openAddModal(prefill = {}) {
   const isManual = !prefill.title;
   const posterBlock = prefill.poster_url
@@ -533,6 +626,7 @@ function openAddModal(prefill = {}) {
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     ${externalLinkHtml(prefill)}
+    ${prefill.description ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin-bottom:16px;color:var(--text-secondary)">${escapeHtml(prefill.description)}</p>` : ''}
     <div class="field">
       <label for="addTitle">Title</label>
       <input type="text" id="addTitle" value="${escapeHtml(prefill.title || '')}" required>
@@ -551,59 +645,19 @@ function openAddModal(prefill = {}) {
       <label for="addYear">Year</label>
       <input type="text" id="addYear" value="${escapeHtml(prefill.year || '')}">
     </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:14px;cursor:pointer;">
-      <input type="checkbox" id="alreadyDone" style="width:auto;">
-      I've already experienced this
-    </label>
-    <div class="field" id="wishlistTagField">
-      <label>Tags</label>
-      ${tagChipsHtml('wishlistTagChips', WISHLIST_TAGS, [])}
-    </div>
-    <div id="ratingSection" class="hidden">
-      <div class="field">
-        <label>Your rating</label>
-        ${starsEditableHtml('addStars', 0)}
-      </div>
-      <div class="field">
-        <label>Tags</label>
-        ${tagChipsHtml('reactionTagChips', REACTION_TAGS[prefill.media_type] || REACTION_TAGS.movie, [])}
-      </div>
-      <div class="field">
-        <label for="addNotes">Notes</label>
-        <textarea id="addNotes" placeholder="Thoughts, quotes, where you left off…"></textarea>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="addSaveBtn" style="width:100%">Add</button>
+    <div class="modal-actions stack">
+      <button type="button" class="btn-primary" id="addWishlistBtn">+ Add to Wishlist</button>
+      <button type="button" class="btn-secondary" id="addWatchedBtn">✓ Mark as Watched</button>
+      <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">▶ Currently Reading</button>
     </div>
   `;
   openModalWithContent(html);
-  wireStars('addStars');
-  wireTagChips('wishlistTagChips');
-  wireTagChips('reactionTagChips');
   el('modalCloseBtn').addEventListener('click', closeModal);
-  el('alreadyDone').addEventListener('change', (e) => {
-    const done = e.target.checked;
-    el('ratingSection').classList.toggle('hidden', !done);
-    el('wishlistTagField').classList.toggle('hidden', done);
-  });
-  el('addType').addEventListener('change', () => {
-    const options = REACTION_TAGS[el('addType').value] || REACTION_TAGS.movie;
-    el('reactionTagChips').outerHTML = tagChipsHtml('reactionTagChips', options, []);
-    wireTagChips('reactionTagChips');
-  });
 
-  el('addSaveBtn').addEventListener('click', async () => {
-    const title = el('addTitle').value.trim();
-    if (!title) {
-      el('addTitle').focus();
-      return;
-    }
-    const done = el('alreadyDone').checked;
-    const rating = done ? getStarsValue('addStars') : 0;
-    const payload = {
+  function currentDraft() {
+    return {
       media_type: el('addType').value,
-      title,
+      title: el('addTitle').value.trim(),
       creator: el('addCreator').value.trim() || null,
       year: el('addYear').value.trim() || null,
       poster_url: prefill.poster_url || null,
@@ -611,18 +665,55 @@ function openAddModal(prefill = {}) {
       external_source: prefill.external_source || 'manual',
       external_id: prefill.external_id || null,
       external_url: prefill.external_url || null,
-      status: done ? 'completed' : 'wishlist',
-      rating: rating || null,
-      notes: done ? el('addNotes').value.trim() || null : null,
-      date_completed: done ? new Date().toISOString() : null,
-      tags: done ? getActiveChipValues('reactionTagChips') : getActiveChipValues('wishlistTagChips'),
     };
-    const saved = await store.addItem(payload);
+  }
+
+  function updateActionButtons() {
+    const type = el('addType').value;
+    el('addWatchedBtn').textContent = `✓ Mark as ${COMPLETED_VERB[type] || 'Done'}`;
+    const eligible = PROGRESS_TYPES.includes(type);
+    el('addCurrentlyBtn').classList.toggle('hidden', !eligible);
+    el('addCurrentlyBtn').textContent = type === 'book' ? '📖 Currently Reading' : '📺 Currently Watching';
+  }
+  updateActionButtons();
+  el('addType').addEventListener('change', updateActionButtons);
+
+  el('addWishlistBtn').addEventListener('click', async () => {
+    const draft = currentDraft();
+    if (!draft.title) {
+      el('addTitle').focus();
+      return;
+    }
+    const saved = await store.addItem({ ...draft, status: 'wishlist' });
     items.unshift(saved);
     renderWishlist();
     renderJournal();
     closeModal();
-    document.querySelector(`.tab[data-tab="${done ? 'journal' : 'wishlist'}"]`).click();
+    document.querySelector('.tab[data-tab="wishlist"]').click();
+  });
+
+  el('addCurrentlyBtn').addEventListener('click', async () => {
+    const draft = currentDraft();
+    if (!draft.title) {
+      el('addTitle').focus();
+      return;
+    }
+    const progress = draft.media_type === 'book' ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
+    const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
+    items.unshift(saved);
+    renderWishlist();
+    renderJournal();
+    closeModal();
+    document.querySelector('.tab[data-tab="journal"]').click();
+  });
+
+  el('addWatchedBtn').addEventListener('click', () => {
+    const draft = currentDraft();
+    if (!draft.title) {
+      el('addTitle').focus();
+      return;
+    }
+    openReviewModal(draft);
   });
 }
 

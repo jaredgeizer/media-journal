@@ -496,6 +496,29 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
 .card--seen { opacity: 0.55; filter: grayscale(55%); }
 
+.tag-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tag-add-input {
+  flex: 1;
+  border: 1px solid var(--divider);
+  background: rgba(120, 120, 128, 0.08);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+}
+.tag-add-input:focus { border-color: rgba(var(--accent), 0.6); }
+
+.tag-add-btn { padding: 8px 16px; font-size: 13px; }
+
+.modal-actions.stack { flex-direction: column; }
+.modal-actions.stack > * { width: 100%; }
+
 .item-tags {
   display: flex;
   flex-wrap: wrap;

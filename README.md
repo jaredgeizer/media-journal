@@ -20,16 +20,20 @@ an item's rating moves it back. Both Wishlist and Journal have their own
 search/filter bar with tappable chips to narrow by media type.
 
 Items can be tagged: wishlist items get a single **⭐ Shortlist** tag to
-flag your top picks, and once something's marked watched/read you can
-multi-select "reaction" tags (Favorite, Would Rewatch, Recommend, Meh,
-etc.) — the exact wording adapts per media type (e.g. "Would Reread" for
-books). Tags are also searchable in the filter bar.
+flag your top picks. Once something's marked watched/read you can
+multi-select tags on it — **Favorite** is always offered, and beyond
+that tags are entirely user-defined: type a new one to create it, and
+it becomes a suggested chip for other items of that same media type
+going forward. Tags are searchable in the filter bar, and the Journal
+has a dedicated Tags filter (multi-select dropdown of every tag you've
+used).
 
-Books and TV shows can also be marked **Currently Reading/Watching**
-from the wishlist — they then show at the top of the Journal with
-editable progress (a percent-complete for books, season/episode for TV)
-until you rate them, which finishes and files them into the journal feed
-below.
+From Discover, adding a result gives three options: **Add to Wishlist**,
+**Mark as Watched/Read** (opens a review step for rating, tags, and
+notes), or — for books and TV shows only — **Currently Reading/Watching**,
+which files it at the top of the Journal with editable progress (a
+percent-complete for books, season/episode for TV) until you rate it,
+which finishes and moves it into the journal feed below.
 
 ## Running it locally (Demo Mode)
 
