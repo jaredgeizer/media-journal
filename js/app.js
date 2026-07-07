@@ -7,7 +7,7 @@ const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_book
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', play: 'Seen', restaurant: 'Been', other: 'Done' };
 
 const PROGRESS_TYPES = ['book', 'tv'];
-const WISHLIST_TAGS = ['⭐ Shortlist'];
+const WISHLIST_TAGS = ['⭐ Shortlist', '👍 Recommended'];
 
 const store = createStore();
 let items = [];

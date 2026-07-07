@@ -229,17 +229,72 @@ main {
 
 .tab:hover { color: var(--text-primary); }
 
-.discover-fab {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
+.discover-fab,
+button.discover-fab.active {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
   padding: 0;
+  border: none;
+  background: none;
   border-radius: 50%;
-  font-size: 22px;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: none;
+}
+
+.discover-fab-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #4f7fff, #ff5fb0, #3fe0c4, #ffb020, #4f7fff);
+  filter: saturate(1.4);
+  animation: fab-ring-spin 5s linear infinite;
+  transition: opacity 0.25s ease;
+}
+
+.discover-fab-inner {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  color: #4f7fff;
+  animation: fab-hue-cycle 5s linear infinite;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.discover-fab.active .discover-fab-ring { opacity: 0; }
+
+.discover-fab.active .discover-fab-inner {
+  background: linear-gradient(135deg, rgb(var(--accent)), rgba(var(--accent-2), 0.9));
+  color: #fff;
+  animation: none;
+  filter: none;
+}
+
+@keyframes fab-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fab-hue-cycle {
+  to { filter: hue-rotate(360deg); }
+}
+
+@media (max-width: 680px) {
+  .discover-fab { width: 60px; height: 60px; min-width: 60px; }
+  .discover-fab-inner { font-size: 28px; }
 }
 
 .tab.active {
@@ -329,9 +384,17 @@ main {
 
 .chip-row {
   display: flex;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 18px;
+}
+
+.chip-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
 }
 
 .chip-divider {
@@ -898,13 +961,21 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
   #journalTypeChips, #wishlistTypeChips {
     flex-wrap: nowrap;
+  }
+
+  #journalTypeChips .chip-scroll,
+  #wishlistTypeChips .chip-scroll {
+    flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 4px;
   }
 
-  #journalTypeChips .chip,
-  #wishlistTypeChips .chip,
+  #journalTypeChips .chip-scroll .chip,
+  #wishlistTypeChips .chip-scroll .chip {
+    flex: 0 0 auto;
+  }
+
   #journalTypeChips .filter-toggle,
   #wishlistTypeChips .filter-toggle,
   #journalTypeChips .tag-filter-wrap,
