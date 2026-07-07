@@ -17,7 +17,7 @@
 // small built-in sample so you can try the UI before setting anything up.
 
 window.MEDIA_JOURNAL_CONFIG = {
-  supabaseUrl: 'YOUR_SUPABASE_PROJECT_URL',
-  supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',
+  supabaseUrl: 'https://wdoxefmlztkhccbvnecs.supabase.co',
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indkb3hlZm1senRraGNjYnZuZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDU4MjQsImV4cCI6MjA5OTAyMTgyNH0.AXKWd7tVyZO4o6p3dpaZIam00T_0FYYZCCRFVjnEvfU',
   tmdbAccessToken: 'YOUR_TMDB_V4_READ_ACCESS_TOKEN',
 };
