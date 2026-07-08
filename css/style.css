@@ -336,11 +336,6 @@ main {
   padding: 18px 26px;
 }
 
-#tab-discover.discover-empty #discoverSearchBtn {
-  padding: 18px 26px;
-  font-size: 15px;
-}
-
 #tab-discover.discover-empty .chip-row {
   justify-content: center;
 }

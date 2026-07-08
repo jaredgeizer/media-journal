@@ -1296,9 +1296,6 @@ async function runDiscoverSearch() {
   addRecentSearch(query);
   el('tab-discover').classList.remove('discover-empty');
   const type = el('discoverTypeChips').dataset.value;
-  const btn = el('discoverSearchBtn');
-  btn.disabled = true;
-  btn.textContent = 'Searching…';
   el('discoverNotice').classList.add('hidden');
   el('discoverEmpty').classList.add('hidden');
   el('discoverResults').innerHTML = Array.from({ length: 8 }, skeletonCardHtml).join('');
@@ -1326,12 +1323,8 @@ async function runDiscoverSearch() {
   grid.querySelectorAll('[data-idx]').forEach((node) => {
     node.addEventListener('click', () => openAddModal(results[parseInt(node.dataset.idx, 10)]));
   });
-
-  btn.disabled = false;
-  btn.textContent = 'Search';
 }
 
-el('discoverSearchBtn').addEventListener('click', runDiscoverSearch);
 el('discoverQuery').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.target.blur();

@@ -17,7 +17,7 @@
   <div class="topbar-right" id="topbarRight">
     <div class="header-search-field">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
-      <input type="search" id="headerSearchInput" placeholder="Search movies, TV, books…" spellcheck="true" autocomplete="off">
+      <input type="search" id="headerSearchInput" placeholder="Search movies, TV, books…" spellcheck="true" autocomplete="off" enterkeyhint="search">
       <div class="recent-search-dropdown hidden" id="headerRecentDropdown"></div>
     </div>
     <div class="account-menu hidden" id="accountMenu">
@@ -100,8 +100,7 @@
   <!-- DISCOVER -->
   <section id="tab-discover" class="tab-panel discover-empty">
     <div class="search-row">
-      <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts, games…" spellcheck="true" autocomplete="off">
-      <button id="discoverSearchBtn" class="btn-primary">Search</button>
+      <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts, games…" spellcheck="true" autocomplete="off" enterkeyhint="search">
       <div class="recent-search-dropdown hidden" id="discoverRecentDropdown"></div>
     </div>
     <p id="discoverHeroHint" class="empty-state">Use the search bar above to find something new.</p>
