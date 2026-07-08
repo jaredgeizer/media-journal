@@ -261,21 +261,22 @@ main {
 
 .tab:hover { color: var(--text-primary); }
 
-.discover-fab,
-button.discover-fab.active {
+.discover-fab {
   position: relative;
   width: 52px;
   height: 52px;
   min-width: 52px;
   padding: 0;
-  border: none;
-  background: rgb(var(--accent));
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(var(--accent), 0.4);
-  transition: transform 0.15s ease;
+  box-shadow: none;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
 }
 
 .discover-fab:active { transform: scale(0.92); }
@@ -284,10 +285,19 @@ button.discover-fab.active {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: rgb(var(--accent));
 }
 
 .discover-fab-inner svg { width: 20px; height: 20px; }
+
+/* #discoverFabBtn also carries the generic .tab class, whose .tab.active
+   rule (solid fill) has equal specificity to a plain .discover-fab.active
+   selector — use the id to win cleanly instead of fighting source order. */
+#discoverFabBtn.active {
+  background: rgba(var(--accent), 0.18);
+  border-color: rgba(var(--accent), 0.5);
+  box-shadow: none;
+}
 
 @media (max-width: 680px) {
   .discover-fab { width: 64px; height: 64px; min-width: 64px; }
