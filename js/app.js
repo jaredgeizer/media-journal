@@ -3,7 +3,7 @@ import { search as searchExternal, tmdbAvailable, rawgAvailable } from './search
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
-const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books', rawg: '🎮 View on RAWG' };
+const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
 const START_LABEL = { book: '📖 Start Reading', tv: '📺 Start Watching', game: '🎮 Start Playing' };
 const CURRENTLY_LABEL = { book: '📖 Currently Reading', tv: '📺 Currently Watching', game: '🎮 Currently Playing' };
@@ -858,8 +858,8 @@ function openAddModal(prefill = {}) {
     </div>
     <div class="modal-actions stack">
       <button type="button" class="btn-primary" id="addWishlistBtn">+ Add to Wishlist</button>
-      <button type="button" class="btn-secondary" id="addWatchedBtn">✓ Mark as Watched</button>
       <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">▶ Currently Reading</button>
+      <button type="button" class="btn-secondary" id="addWatchedBtn">✓ Mark as Watched</button>
     </div>
   `;
   openModalWithContent(html);
