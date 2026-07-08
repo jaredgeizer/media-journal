@@ -1,0 +1,31 @@
+name: Keep Supabase Awake
+
+# Supabase's free tier pauses a project after 7 days with no database
+# activity. This pings a trivial read on the REST API twice a week to keep
+# the inactivity timer from ever reaching zero. The URL/anon key below are
+# the same values already committed (public on purpose) in js/config.js —
+# the anon key is protected by Row Level Security, not secrecy.
+
+on:
+  schedule:
+    - cron: '0 12 * * 0,4' # Sunday and Thursday, 12:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: https://wdoxefmlztkhccbvnecs.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indkb3hlZm1senRraGNjYnZuZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDU4MjQsImV4cCI6MjA5OTAyMTgyNH0.AXKWd7tVyZO4o6p3dpaZIam00T_0FYYZCCRFVjnEvfU
+        run: |
+          status=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/items?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Supabase responded with HTTP $status"
+          if [ "$status" -ge 400 ]; then
+            echo "Unexpected status code from Supabase" >&2
+            exit 1
+          fi
