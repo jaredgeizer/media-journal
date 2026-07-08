@@ -740,11 +740,12 @@ function syncFilterUI(kind) {
     chip.classList.toggle('active', selectedTags.has(chip.dataset.value));
   });
 
-  const anyActive = selectedTypes.size > 0 || selectedTags.size > 0 || (selectedRatings && selectedRatings.size > 0);
-  el(`${kind}FilterBtn`).classList.toggle('active', anyActive);
-
   const dropdown = el(`${kind}FilterDropdown`);
-  if (!dropdown.classList.contains('hidden')) {
+  const isOpen = !dropdown.classList.contains('hidden');
+  const anyFilterActive = selectedTypes.size > 0 || selectedTags.size > 0 || (selectedRatings && selectedRatings.size > 0);
+  el(`${kind}FilterBtn`).classList.toggle('active', isOpen || anyFilterActive);
+
+  if (isOpen) {
     dropdown.querySelectorAll('.chip[data-value]').forEach((chip) => {
       if (ALL_TYPES.includes(chip.dataset.value)) chip.classList.toggle('active', selectedTypes.has(chip.dataset.value));
     });
@@ -798,6 +799,7 @@ el('wishlistFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   renderWishlistFilterDropdown();
   el('wishlistFilterDropdown').classList.toggle('hidden');
+  syncFilterUI('wishlist');
 });
 
 function renderJournalFilterDropdown() {
@@ -873,6 +875,7 @@ el('journalFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   renderJournalFilterDropdown();
   el('journalFilterDropdown').classList.toggle('hidden');
+  syncFilterUI('journal');
 });
 
 renderQuickTags('journal');
@@ -884,6 +887,8 @@ document.addEventListener('click', (e) => {
       dropdown.classList.add('hidden');
     }
   });
+  syncFilterUI('journal');
+  syncFilterUI('wishlist');
 });
 
 // ---------- Stars widget ----------
