@@ -15,6 +15,10 @@
     <div class="brand">Media Journal</div>
   </div>
   <div class="topbar-right" id="topbarRight">
+    <div class="header-search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+      <input type="search" id="headerSearchInput" placeholder="Search movies, TV, books…">
+    </div>
     <div class="account-menu hidden" id="accountMenu">
       <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
       <div class="account-dropdown hidden" id="accountDropdown">
@@ -35,17 +39,13 @@
     <button class="tab" data-tab="wishlist">Wishlist</button>
   </div>
   <button class="tab discover-fab" id="discoverFabBtn" data-tab="discover" aria-label="Discover — find something new">
-    <span class="discover-fab-ring"></span>
-    <span class="discover-fab-inner">+</span>
+    <span class="discover-fab-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
   </button>
 </nav>
 
 <main>
   <!-- JOURNAL -->
   <section id="tab-journal" class="tab-panel active">
-    <div class="search-row">
-      <input type="search" id="journalFilter" class="glass-input" placeholder="Search your journal…">
-    </div>
     <div class="chip-row" id="journalTypeChips" data-value="all">
       <div class="tag-filter-wrap">
         <button type="button" class="filter-toggle" id="journalFilterBtn">🎚️ Filters</button>
@@ -74,9 +74,6 @@
 
   <!-- WISHLIST -->
   <section id="tab-wishlist" class="tab-panel">
-    <div class="search-row">
-      <input type="search" id="wishlistFilter" class="glass-input" placeholder="Search your wishlist…">
-    </div>
     <div class="chip-row" id="wishlistTypeChips" data-value="all">
       <div class="tag-filter-wrap">
         <button type="button" class="filter-toggle" id="wishlistFilterBtn">🎚️ Filters</button>

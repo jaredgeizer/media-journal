@@ -110,6 +110,7 @@ async function searchMovies(query) {
     description: r.overview || null,
     external_source: 'tmdb',
     external_id: `movie-${r.id}`,
+    popularity: r.popularity || 0,
   }));
 }
 
@@ -131,6 +132,7 @@ async function searchTV(query) {
     description: r.overview || null,
     external_source: 'tmdb',
     external_id: `tv-${r.id}`,
+    popularity: r.popularity || 0,
   }));
 }
 
@@ -217,6 +219,7 @@ async function searchGames(query) {
       external_source: 'rawg',
       external_id: String(r.id),
       external_url: r.slug ? `https://rawg.io/games/${r.slug}` : null,
+      popularity: r.added || 0,
     };
   });
 }

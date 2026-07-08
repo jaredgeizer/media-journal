@@ -79,41 +79,53 @@ boot();
 
 // ---------- Tabs ----------
 
+function switchTab(tabName) {
+  document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+  document.querySelectorAll(`.tab[data-tab="${tabName}"]`).forEach((b) => b.classList.add('active'));
+  el('tab-' + tabName).classList.add('active');
+}
+
 document.querySelectorAll('.tab').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
-    btn.classList.add('active');
-    el('tab-' + btn.dataset.tab).classList.add('active');
-  });
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
 el('discoverFabBtn').addEventListener('click', () => {
   el('discoverQuery').focus();
 });
 
+// Desktop's persistent header search field: Enter jumps to Discover and
+// runs the same search flow as the Discover tab's own search box.
+el('headerSearchInput').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const query = e.target.value.trim();
+  if (!query) return;
+  e.target.blur();
+  switchTab('discover');
+  el('discoverQuery').value = query;
+  runDiscoverSearch();
+});
+
 // ---------- Responsive nav placement ----------
-// On desktop, the Journal/Wishlist pills and the Discover + button live in
-// the header next to the title/account icon; on mobile they live in their
-// own fixed bottom bar. Physically relocate the nodes rather than
-// duplicating them, so all their listeners keep working either way.
+// On desktop, the Journal/Wishlist pills live in the header next to the
+// title/account icon; on mobile they live in their own fixed bottom bar
+// alongside the search button. Physically relocate the pills node rather
+// than duplicating it, so its listeners keep working either way. The
+// header search field and mobile search button are separate elements
+// shown/hidden purely via CSS media query — no relocation needed.
 
 const desktopNavQuery = window.matchMedia('(min-width: 681px)');
 
 function applyResponsiveNav(isDesktop) {
   const pills = document.querySelector('.tabbar-pills');
-  const fab = el('discoverFabBtn');
   const nav = document.querySelector('.tabbar');
   const topbarLeft = el('topbarLeft');
-  const topbarRight = el('topbarRight');
 
   if (isDesktop) {
     topbarLeft.appendChild(pills);
-    topbarRight.insertBefore(fab, el('accountMenu'));
     nav.classList.add('hidden');
   } else {
     nav.insertBefore(pills, nav.firstChild);
-    nav.appendChild(fab);
     nav.classList.remove('hidden');
   }
 }
@@ -382,17 +394,11 @@ function discoverCardHtml(item, idx) {
 // ---------- Filtering ----------
 
 function getFilters(prefix) {
-  return {
-    text: el(prefix + 'Filter').value.trim().toLowerCase(),
-    type: el(prefix + 'TypeChips').dataset.value,
-  };
+  return { type: el(prefix + 'TypeChips').dataset.value };
 }
 
-function matches(item, { text, type }) {
-  if (type !== 'all' && item.media_type !== type) return false;
-  if (!text) return true;
-  const hay = [item.title, item.creator, item.notes, ...(item.tags || [])].filter(Boolean).join(' ').toLowerCase();
-  return hay.includes(text);
+function matches(item, { type }) {
+  return type === 'all' || item.media_type === type;
 }
 
 function renderWishlist() {
@@ -550,9 +556,7 @@ function wireChipGroup(containerId, onChange) {
   });
 }
 
-el('wishlistFilter').addEventListener('input', renderWishlist);
 wireChipGroup('wishlistTypeChips', renderWishlist);
-el('journalFilter').addEventListener('input', renderJournal);
 wireChipGroup('journalTypeChips', renderJournal);
 
 function renderWishlistFilterDropdown() {
@@ -1148,6 +1152,33 @@ el('manualAddBtn').addEventListener('click', () => openAddModal({}));
 
 // ---------- Discover ----------
 
+function skeletonCardHtml() {
+  return `
+    <div class="skeleton-card glass">
+      <div class="skeleton-poster"></div>
+      <div class="skeleton-line"></div>
+      <div class="skeleton-line short"></div>
+    </div>`;
+}
+
+// Already-in-library results come first (reusing the same match check the
+// badges use); beyond that, prefer sources' own popularity signal (TMDb
+// `popularity`, RAWG `added`) as a rough tiebreaker where one exists.
+function rankDiscoverResults(results) {
+  return results
+    .map((r, idx) => ({ r, idx }))
+    .sort((a, b) => {
+      const aMatch = findLibraryMatch(a.r) ? 1 : 0;
+      const bMatch = findLibraryMatch(b.r) ? 1 : 0;
+      if (aMatch !== bMatch) return bMatch - aMatch;
+      const aPop = a.r.popularity || 0;
+      const bPop = b.r.popularity || 0;
+      if (aPop !== bPop) return bPop - aPop;
+      return a.idx - b.idx;
+    })
+    .map(({ r }) => r);
+}
+
 async function runDiscoverSearch() {
   const query = el('discoverQuery').value.trim();
   if (!query) return;
@@ -1157,6 +1188,8 @@ async function runDiscoverSearch() {
   btn.disabled = true;
   btn.textContent = 'Searching…';
   el('discoverNotice').classList.add('hidden');
+  el('discoverEmpty').classList.add('hidden');
+  el('discoverResults').innerHTML = Array.from({ length: 8 }, skeletonCardHtml).join('');
 
   const notices = [];
   if (!tmdbAvailable() && (type === 'all' || type === 'movie' || type === 'tv')) {
@@ -1166,7 +1199,8 @@ async function runDiscoverSearch() {
     notices.push('Add a free RAWG API key to js/config.js to search video games — see README.');
   }
 
-  const { results, errors } = await searchExternal(query, type);
+  const { results: rawResults, errors } = await searchExternal(query, type);
+  const results = rankDiscoverResults(rawResults);
   errors.forEach((e) => notices.push(`${TYPE_LABEL[e.type] || e.type} search failed: ${e.message}`));
 
   if (notices.length) {
