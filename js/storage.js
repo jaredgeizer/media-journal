@@ -102,6 +102,25 @@ class DemoStore {
     const items = readDemoItems().filter((i) => i.id !== id);
     writeDemoItems(items);
   }
+
+  async addItems(newItems) {
+    const items = readDemoItems();
+    const now = new Date().toISOString();
+    const added = newItems.map((item) => ({
+      id: uuid(),
+      user_id: DEMO_USER_ID,
+      status: 'wishlist',
+      rating: null,
+      notes: null,
+      date_completed: null,
+      created_at: now,
+      updated_at: now,
+      date_added: now,
+      ...item,
+    }));
+    writeDemoItems([...items, ...added]);
+    return added;
+  }
 }
 
 class SupabaseStore {
@@ -178,6 +197,22 @@ class SupabaseStore {
   async deleteItem(id) {
     const { error } = await this.client.from('items').delete().eq('id', id);
     if (error) throw error;
+  }
+
+  async addItems(newItems) {
+    if (!newItems.length) return [];
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const rows = newItems.map((item) => ({ status: 'wishlist', ...item, user_id }));
+    const chunkSize = 200;
+    const added = [];
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const { data, error } = await this.client.from('items').insert(chunk).select();
+      if (error) throw error;
+      added.push(...data);
+    }
+    return added;
   }
 }
 

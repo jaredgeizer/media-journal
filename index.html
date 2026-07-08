@@ -18,6 +18,7 @@
     <div class="account-menu hidden" id="accountMenu">
       <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
       <div class="account-dropdown hidden" id="accountDropdown">
+        <button type="button" class="account-dropdown-item" id="importExportBtn">Import / Export</button>
         <button type="button" class="account-dropdown-item" id="signOutBtn">Sign out</button>
       </div>
     </div>
@@ -126,6 +127,8 @@
 <footer class="tmdb-attribution">This product uses the TMDb API but is not endorsed or certified by TMDb. Game data from RAWG.io.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
 <script src="js/config.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>

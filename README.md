@@ -140,6 +140,34 @@ Free tier is 20,000 requests/month, plenty for personal use. RAWG asks
 that apps using their free API credit them — the footer already
 includes a "Game data from RAWG.io" line, so no extra setup needed there.
 
+## Importing your data
+
+Under the account menu (👤 in the header) → **Import / Export**, you can:
+
+- **Export** your whole library as a JSON file (also doubles as a backup).
+- **Import from Goodreads**: export your library at
+  [goodreads.com/review/import](https://www.goodreads.com/review/import) →
+  "Export Library", then upload the `.csv` file. Shelves map to status
+  (`read` → completed, `currently-reading` → in progress, `to-read` →
+  wishlist) and your 1–5 star rating carries over.
+- **Import from Fable**: Fable has no official export. Use a third-party
+  browser extension (e.g. "Fable Xport") to generate a Goodreads-style
+  `.csv`, then upload it the same way as a Goodreads file.
+- **Import from Letterboxd**: export your data at
+  [letterboxd.com/user/exportdata](https://letterboxd.com/user/exportdata/)
+  and upload the `.zip` as-is — no need to unzip it first. Letterboxd's
+  half-star ratings (0.5–5) are rounded to the nearest whole star to fit
+  this app's 1–5 scale.
+
+Every import shows a preview (how many items will be added vs. skipped as
+already-in-your-library duplicates) before anything is written. Imported
+items don't get poster images or descriptions automatically — edit an item
+afterward to add those by hand, or re-add it from Discover to pick up
+artwork from a search result.
+
+Serializd isn't supported yet — it doesn't currently offer a reliable free
+export.
+
 ## Deploying to GitHub Pages
 
 1. Fill in `js/config.js` as above and commit it (see the note on the

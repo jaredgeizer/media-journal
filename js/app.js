@@ -1,5 +1,6 @@
 import { createStore } from './storage.js';
 import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo } from './search.js';
+import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
@@ -31,10 +32,10 @@ function escapeHtml(str) {
 async function boot() {
   await store.init();
 
+  el('accountMenu').classList.remove('hidden');
   if (store.mode === 'demo') {
     el('demoBanner').classList.remove('hidden');
-  } else {
-    el('accountMenu').classList.remove('hidden');
+    el('signOutBtn').classList.add('hidden');
   }
 
   store.onAuthChange(async (user) => {
@@ -60,6 +61,11 @@ el('signOutBtn').addEventListener('click', async () => {
 el('accountBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   el('accountDropdown').classList.toggle('hidden');
+});
+
+el('importExportBtn').addEventListener('click', () => {
+  el('accountDropdown').classList.add('hidden');
+  openImportExportModal();
 });
 
 document.addEventListener('click', (e) => {
@@ -671,6 +677,133 @@ function openModalWithContent(innerHtml) {
   el('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
+}
+
+// ---------- Import / Export ----------
+
+function openImportExportModal() {
+  const html = `
+    <div class="modal-header">
+      <div style="flex:1">
+        <p class="modal-title">Import / Export</p>
+        <p class="modal-subtitle">Bring in your history from another tracker, or back up your data.</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div class="field">
+      <label>Export</label>
+      <button type="button" class="btn-secondary" id="exportJsonBtn" style="width:100%;">⬇️ Export my data (JSON)</button>
+    </div>
+    <div class="field">
+      <label>Import from Goodreads</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">Export your library at <a href="https://www.goodreads.com/review/import" target="_blank" rel="noopener">goodreads.com/review/import</a> → "Export Library", then upload the .csv here.</p>
+      <input type="file" accept=".csv" id="goodreadsFile">
+    </div>
+    <div class="field">
+      <label>Import from Fable</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">Fable has no built-in export — use a browser extension such as "Fable Xport" to generate a Goodreads-style .csv, then upload it here.</p>
+      <input type="file" accept=".csv" id="fableFile">
+    </div>
+    <div class="field">
+      <label>Import from Letterboxd</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">Export your data at <a href="https://letterboxd.com/user/exportdata/" target="_blank" rel="noopener">letterboxd.com/user/exportdata</a>, then upload the .zip here as-is.</p>
+      <input type="file" accept=".zip" id="letterboxdFile">
+    </div>
+    <div id="importNotice" class="notice warn hidden"></div>
+  `;
+  openModalWithContent(html);
+  el('modalCloseBtn').addEventListener('click', closeModal);
+  el('exportJsonBtn').addEventListener('click', () => exportAsJson(items));
+
+  function showImportError(err) {
+    const n = el('importNotice');
+    if (!n) return;
+    n.textContent = err.message || 'Could not read that file.';
+    n.classList.remove('hidden');
+  }
+
+  el('goodreadsFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      openImportPreviewModal('Goodreads', parseGoodreadsCsv(await file.text()));
+    } catch (err) {
+      showImportError(err);
+    }
+  });
+
+  el('fableFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      openImportPreviewModal('Fable', parseFableCsv(await file.text()));
+    } catch (err) {
+      showImportError(err);
+    }
+  });
+
+  el('letterboxdFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      openImportPreviewModal('Letterboxd', await parseLetterboxdZip(await file.arrayBuffer()));
+    } catch (err) {
+      showImportError(err);
+    }
+  });
+}
+
+function openImportPreviewModal(sourceLabel, parsedItems) {
+  const { toAdd, skipped } = dedupeAgainstLibrary(parsedItems, items);
+  const html = `
+    <div class="modal-header">
+      <div style="flex:1">
+        <p class="modal-title">Import from ${sourceLabel}</p>
+        <p class="modal-subtitle">${toAdd.length} item${toAdd.length === 1 ? '' : 's'} to import${skipped.length ? `, ${skipped.length} already in your library will be skipped` : ''}.</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    ${
+      toAdd.length
+        ? `<div class="modal-actions">
+            <button type="button" class="btn-secondary" id="cancelImportBtn" style="width:100%;">Cancel</button>
+            <button type="button" class="btn-primary" id="confirmImportBtn" style="width:100%;">Import ${toAdd.length} item${toAdd.length === 1 ? '' : 's'}</button>
+          </div>`
+        : `<p class="empty-state">Nothing new to import — everything in this file is already in your library.</p>
+           <button type="button" class="btn-secondary" id="cancelImportBtn" style="width:100%;">Close</button>`
+    }
+  `;
+  openModalWithContent(html);
+  el('modalCloseBtn').addEventListener('click', closeModal);
+  el('cancelImportBtn').addEventListener('click', closeModal);
+  const confirmBtn = el('confirmImportBtn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Importing…';
+      const added = await store.addItems(toAdd);
+      items = [...items, ...added];
+      renderWishlist();
+      renderJournal();
+      openImportResultModal(sourceLabel, added.length);
+    });
+  }
+}
+
+function openImportResultModal(sourceLabel, count) {
+  const html = `
+    <div class="modal-header">
+      <div style="flex:1">
+        <p class="modal-title">Import complete</p>
+        <p class="modal-subtitle">Added ${count} item${count === 1 ? '' : 's'} from ${sourceLabel}.</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <button type="button" class="btn-primary" id="doneImportBtn" style="width:100%;">Done</button>
+  `;
+  openModalWithContent(html);
+  el('modalCloseBtn').addEventListener('click', closeModal);
+  el('doneImportBtn').addEventListener('click', closeModal);
 }
 
 function openEditModal(item) {
