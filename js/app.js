@@ -27,6 +27,71 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ---------- Recent searches ----------
+
+const RECENT_SEARCHES_KEY = 'mediaJournal.recentSearches';
+const MAX_RECENT_SEARCHES = 8;
+
+function getRecentSearches() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentSearch(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return;
+  const rest = getRecentSearches().filter((q) => q.toLowerCase() !== trimmed.toLowerCase());
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify([trimmed, ...rest].slice(0, MAX_RECENT_SEARCHES)));
+}
+
+function clearRecentSearches() {
+  localStorage.removeItem(RECENT_SEARCHES_KEY);
+}
+
+const RECENT_SEARCH_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline></svg>';
+
+// Wires a text input to show a "recent searches" dropdown on focus. Clicking
+// an entry (or Clear) is handled via a mousedown-preventDefault on the
+// dropdown so the input never blurs before the click registers.
+function wireRecentSearchDropdown(input, dropdown, onSelect) {
+  function render() {
+    const recents = getRecentSearches();
+    if (!recents.length) {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+      return;
+    }
+    dropdown.innerHTML = `
+      ${recents.map((q) => `<button type="button" class="recent-search-item" data-query="${escapeHtml(q)}">${RECENT_SEARCH_ICON}${escapeHtml(q)}</button>`).join('')}
+      <button type="button" class="recent-search-clear">Clear recent searches</button>
+    `;
+    dropdown.classList.remove('hidden');
+  }
+
+  dropdown.addEventListener('mousedown', (e) => e.preventDefault());
+  dropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('.recent-search-item');
+    if (item) {
+      dropdown.classList.add('hidden');
+      onSelect(item.dataset.query);
+      return;
+    }
+    if (e.target.closest('.recent-search-clear')) {
+      clearRecentSearches();
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    }
+  });
+
+  input.addEventListener('focus', render);
+  input.addEventListener('blur', () => dropdown.classList.add('hidden'));
+}
+
 // ---------- Boot ----------
 
 async function boot() {
@@ -84,6 +149,10 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
   document.querySelectorAll(`.tab[data-tab="${tabName}"]`).forEach((b) => b.classList.add('active'));
   el('tab-' + tabName).classList.add('active');
+  if (tabName === 'journal' || tabName === 'wishlist') {
+    el('discoverQuery').value = '';
+    el('headerSearchInput').value = '';
+  }
 }
 
 document.querySelectorAll('.tab').forEach((btn) => {
@@ -101,6 +170,16 @@ el('headerSearchInput').addEventListener('keydown', (e) => {
   const query = e.target.value.trim();
   if (!query) return;
   e.target.blur();
+  switchTab('discover');
+  el('discoverQuery').value = query;
+  runDiscoverSearch();
+});
+
+wireRecentSearchDropdown(el('discoverQuery'), el('discoverRecentDropdown'), (query) => {
+  el('discoverQuery').value = query;
+  runDiscoverSearch();
+});
+wireRecentSearchDropdown(el('headerSearchInput'), el('headerRecentDropdown'), (query) => {
   switchTab('discover');
   el('discoverQuery').value = query;
   runDiscoverSearch();
@@ -1182,6 +1261,7 @@ function rankDiscoverResults(results) {
 async function runDiscoverSearch() {
   const query = el('discoverQuery').value.trim();
   if (!query) return;
+  addRecentSearch(query);
   el('tab-discover').classList.remove('discover-empty');
   const type = el('discoverTypeChips').dataset.value;
   const btn = el('discoverSearchBtn');
