@@ -798,7 +798,11 @@ function openEditModal(item) {
   const markBtn = el('markWatchedBtn');
   if (markBtn) {
     markBtn.addEventListener('click', async () => {
-      const updated = await persist({ status: 'completed', date_completed: current.date_completed || new Date().toISOString() });
+      const updated = await persist({
+        status: 'completed',
+        date_completed: current.date_completed || new Date().toISOString(),
+        tags: (current.tags || []).filter((t) => !WISHLIST_TAGS.includes(t)),
+      });
       document.querySelector('.tab[data-tab="journal"]').click();
       openReviewModal(updated);
     });
