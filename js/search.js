@@ -20,24 +20,62 @@ export function tmdbAvailable() {
   return !!tmdbToken();
 }
 
+// TMDb's raw per-show season list often undercounts anime, where a show's
+// real (fan-facing) seasons don't match how TMDb split up its own `seasons`
+// array. Many anime instead have a named "episode group" (an alternate
+// season breakdown TMDb itself prefers to display) that gets this right —
+// so when one exists and has more seasons than the raw list, use it instead.
+async function getSeasonEpisodeGroup(tmdbId, token) {
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/episode_groups`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const candidate = (data.results || []).find((g) => /season/i.test(g.name || ''));
+    if (!candidate) return null;
+
+    const detailRes = await fetch(`https://api.themoviedb.org/3/tv/episode_group/${candidate.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!detailRes.ok) return null;
+    const detail = await detailRes.json();
+    const seasons = (detail.groups || [])
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((g, idx) => ({ seasonNumber: idx + 1, episodeCount: (g.episodes || []).length }));
+    return seasons.length ? { seasons } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Season/episode counts aren't in the search results — needs its own call
 // to the TV Details endpoint, keyed by the TMDb id (not our own item id).
 export async function getTVSeasonInfo(tmdbId) {
   const token = tmdbToken();
   if (!token) return null;
+  let rawInfo = null;
   try {
     const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const seasons = (data.seasons || [])
-      .filter((s) => s.season_number > 0)
-      .map((s) => ({ seasonNumber: s.season_number, episodeCount: s.episode_count }));
-    return seasons.length ? { seasons } : null;
+    if (res.ok) {
+      const data = await res.json();
+      const seasons = (data.seasons || [])
+        .filter((s) => s.season_number > 0)
+        .map((s) => ({ seasonNumber: s.season_number, episodeCount: s.episode_count }));
+      rawInfo = seasons.length ? { seasons } : null;
+    }
   } catch {
-    return null;
+    rawInfo = null;
   }
+
+  const groupInfo = await getSeasonEpisodeGroup(tmdbId, token);
+  if (groupInfo && (!rawInfo || groupInfo.seasons.length > rawInfo.seasons.length)) {
+    return groupInfo;
+  }
+  return rawInfo;
 }
 
 function googleBooksKey() {
