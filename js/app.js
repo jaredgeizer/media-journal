@@ -372,6 +372,23 @@ function episodeCountForSeason(info, seasonNumber) {
   return season ? season.episodeCount : null;
 }
 
+// Once we know a real season/episode count, swap the plain number input for
+// a native <select> — on mobile this brings up the OS's number-wheel
+// picker, automatically capped to the given range, instead of a keyboard.
+function turnIntoSelect(input) {
+  const select = document.createElement('select');
+  select.id = input.id;
+  input.replaceWith(select);
+  return select;
+}
+
+function setSelectOptions(select, count, selected) {
+  select.innerHTML = Array.from({ length: count }, (_, i) => {
+    const n = i + 1;
+    return `<option value="${n}"${n === selected ? ' selected' : ''}>${n}</option>`;
+  }).join('');
+}
+
 function progressFieldHtml(item) {
   if (item.status !== 'in_progress') return '';
   if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) {
@@ -381,7 +398,7 @@ function progressFieldHtml(item) {
         <label>Progress</label>
         <div class="progress-row">
           <input type="range" id="editProgressPercent" min="0" max="100" step="1" value="${pct}">
-          <input type="number" id="editProgressPercentNumber" min="0" max="100" value="${pct}">
+          <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressPercentNumber" min="0" max="100" value="${pct}">
           <span class="progress-subtext">%</span>
         </div>
       </div>`;
@@ -394,10 +411,10 @@ function progressFieldHtml(item) {
         <label>Progress</label>
         <div class="progress-row">
           <span class="progress-subtext">Season</span>
-          <input type="number" id="editProgressSeason" min="1" value="${season}">
+          <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressSeason" min="1" value="${season}">
           <span class="progress-subtext" id="editSeasonTotal"></span>
           <span class="progress-subtext">Episode</span>
-          <input type="number" id="editProgressEpisode" min="1" value="${episode}">
+          <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressEpisode" min="1" value="${episode}">
           <span class="progress-subtext" id="editEpisodeTotal"></span>
         </div>
       </div>`;
@@ -505,7 +522,7 @@ function currentlyEntryHtml(item) {
           <p class="card-title">${escapeHtml(item.title)}</p>
           <input type="range" class="currently-progress-slider" min="0" max="100" value="${pct}" data-progress-id="${item.id}">
           <div class="currently-progress-row">
-            <input type="number" class="currently-progress-number" min="0" max="100" value="${pct}" data-progress-number-id="${item.id}">
+            <input type="number" inputmode="numeric" pattern="[0-9]*" class="currently-progress-number" min="0" max="100" value="${pct}" data-progress-number-id="${item.id}">
             <span class="progress-subtext">%</span>
           </div>
         </div>
@@ -977,19 +994,34 @@ function openEditModal(item) {
     });
 
     getSeasonInfoCached(current).then((info) => {
-      const seasonInput = el('editProgressSeason');
-      if (!info || !seasonInput) return;
-      const episodeInput = el('editProgressEpisode');
+      const seasonInputEl = el('editProgressSeason');
+      if (!info || !seasonInputEl) return;
+      const episodeInputEl = el('editProgressEpisode');
       const seasonTotal = el('editSeasonTotal');
       const episodeTotal = el('editEpisodeTotal');
       seasonTotal.textContent = `of ${info.seasons.length}`;
-      const updateEpisodeHint = () => {
-        const epCount = episodeCountForSeason(info, parseInt(seasonInput.value, 10) || 1);
+
+      const seasonSelect = turnIntoSelect(seasonInputEl);
+      setSelectOptions(seasonSelect, info.seasons.length, parseInt(seasonInputEl.value, 10) || 1);
+
+      let episodeSelect = null;
+      const updateEpisodeOptions = () => {
+        const epCount = episodeCountForSeason(info, parseInt(seasonSelect.value, 10) || 1);
         episodeTotal.textContent = epCount ? `of ${epCount}` : '';
-        if (epCount) episodeInput.max = epCount;
+        if (!epCount) return;
+        const currentEpisode = Math.min(parseInt((episodeSelect || episodeInputEl).value, 10) || 1, epCount);
+        if (!episodeSelect) episodeSelect = turnIntoSelect(episodeInputEl);
+        setSelectOptions(episodeSelect, epCount, currentEpisode);
+        episodeSelect.onchange = (e) => {
+          persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
+        };
       };
-      updateEpisodeHint();
-      seasonInput.addEventListener('input', updateEpisodeHint);
+      updateEpisodeOptions();
+
+      seasonSelect.addEventListener('change', (e) => {
+        persist({ progress_season: parseInt(e.target.value, 10) || 1 });
+        updateEpisodeOptions();
+      });
     });
   }
 

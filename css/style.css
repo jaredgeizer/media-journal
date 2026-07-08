@@ -564,6 +564,7 @@ main {
 
 .progress-row input[type="number"] { width: 70px; flex: none; }
 .progress-row input[type="range"] { flex: 1; min-width: 120px; }
+.progress-row select { width: auto; flex: none; }
 .progress-subtext { font-size: 12.5px; color: var(--text-secondary); }
 
 #currentlyContainer { margin-bottom: 28px; }
