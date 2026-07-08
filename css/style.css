@@ -64,6 +64,10 @@
 html, body {
   height: 100%;
   background: var(--page-bg);
+  /* Stop the iOS Safari rubber-band bounce from revealing whatever's
+     "behind" the page at the top/bottom edges — without this, overscrolling
+     near the bottom nav shows a plain black strip instead of --page-bg. */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -72,6 +76,7 @@ body {
   color: var(--text-primary);
   background: var(--page-bg);
   min-height: 100vh;
+  min-height: 100dvh; /* accounts for Safari's collapsing/expanding toolbar */
   overflow-x: hidden;
 }
 
@@ -263,37 +268,30 @@ button.discover-fab.active {
   height: 52px;
   min-width: 52px;
   padding: 0;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: none;
+  background: rgb(var(--accent));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: none;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 14px rgba(var(--accent), 0.4);
+  transition: transform 0.15s ease;
 }
+
+.discover-fab:active { transform: scale(0.92); }
 
 .discover-fab-inner {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(var(--accent));
+  color: #fff;
 }
 
 .discover-fab-inner svg { width: 20px; height: 20px; }
 
-.discover-fab.active {
-  background: rgb(var(--accent));
-  border-color: transparent;
-}
-
-.discover-fab.active .discover-fab-inner { color: #fff; }
-
 @media (max-width: 680px) {
-  .discover-fab { width: 60px; height: 60px; min-width: 60px; }
-  .discover-fab-inner svg { width: 24px; height: 24px; }
+  .discover-fab { width: 64px; height: 64px; min-width: 64px; }
+  .discover-fab-inner svg { width: 27px; height: 27px; }
 }
 
 .tab.active {
@@ -1099,6 +1097,8 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 }
 
 @media (max-width: 680px) {
+  .brand { font-size: 20px; }
+
   .tabbar {
     position: fixed;
     top: auto;
@@ -1107,7 +1107,7 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
     right: 0;
     max-width: none;
     margin: 0;
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
     z-index: 40;
   }
 
