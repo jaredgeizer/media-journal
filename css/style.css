@@ -285,7 +285,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(var(--accent));
+  color: var(--text-secondary);
 }
 
 .discover-fab-inner svg { width: 20px; height: 20px; }
@@ -298,6 +298,8 @@ main {
   border-color: rgba(var(--accent), 0.5);
   box-shadow: none;
 }
+
+#discoverFabBtn.active .discover-fab-inner { color: rgb(var(--accent)); }
 
 @media (max-width: 680px) {
   .discover-fab { width: 64px; height: 64px; min-width: 64px; }
