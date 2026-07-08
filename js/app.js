@@ -638,16 +638,16 @@ function openEditModal(item) {
     ${externalLinkHtml(current)}
     ${descriptionHtml(current.description, 'editDescription')}
     ${
+      current.status === 'wishlist'
+        ? `<div class="field" id="wishlistTagField"><label>Tags</label>${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, current.tags || [])}</div>`
+        : ''
+    }
+    ${
       current.status === 'wishlist' && PROGRESS_TYPES.includes(current.media_type)
         ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:12px;">${START_LABEL[current.media_type]}</button>`
         : ''
     }
     ${progressFieldHtml(current)}
-    ${
-      current.status === 'wishlist'
-        ? `<div class="field" id="wishlistTagField"><label>Tags</label>${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, current.tags || [])}</div>`
-        : ''
-    }
     ${
       current.status === 'completed'
         ? `
