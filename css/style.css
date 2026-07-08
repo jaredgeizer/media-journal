@@ -340,6 +340,16 @@ button.discover-fab.active {
   margin-top: 24px;
 }
 
+#discoverHeroHint { display: none; }
+
+/* At the same width where the persistent header search field appears, the
+   in-content search box is redundant — hide it and point to the header
+   field instead while Discover is in its empty landing state. */
+@media (min-width: 681px) {
+  #tab-discover .search-row { display: none; }
+  #tab-discover.discover-empty #discoverHeroHint { display: block; }
+}
+
 @keyframes fadein {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
