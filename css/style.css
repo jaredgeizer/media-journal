@@ -20,6 +20,7 @@
   --text-secondary: rgba(60, 60, 67, 0.75);
   --text-tertiary: rgba(60, 60, 67, 0.5);
   --page-bg: #f1f1f1;
+  --page-bg-rgb: 241, 241, 241;
   --divider: rgba(60, 60, 67, 0.15);
   --danger: #ff3b30;
   --star-on: #ffb020;
@@ -36,6 +37,7 @@
     --text-secondary: rgba(235, 235, 245, 0.72);
     --text-tertiary: rgba(235, 235, 245, 0.5);
     --page-bg: #000000;
+    --page-bg-rgb: 0, 0, 0;
     --divider: rgba(255, 255, 255, 0.12);
     --star-off: rgba(235, 235, 245, 0.3);
   }
@@ -48,6 +50,7 @@
   --text-primary: #1c1c1e;
   --text-secondary: rgba(60, 60, 67, 0.75);
   --page-bg: #f1f1f1;
+  --page-bg-rgb: 241, 241, 241;
 }
 
 :root[data-theme="dark"] {
@@ -57,6 +60,7 @@
   --text-primary: #f2f2f7;
   --text-secondary: rgba(235, 235, 245, 0.72);
   --page-bg: #000000;
+  --page-bg-rgb: 0, 0, 0;
 }
 
 * { box-sizing: border-box; }
@@ -239,6 +243,8 @@ main {
   margin: 16px auto;
   padding: 0 16px;
 }
+
+.bottom-fade { display: none; }
 
 .tabbar-pills {
   display: flex;
@@ -1136,9 +1142,12 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 
-@media (max-width: 680px) {
-  .brand { font-size: 20px; }
+/* Tablet + mobile: title 50% larger than the 18px desktop size. */
+@media (max-width: 1024px) {
+  .brand { font-size: 27px; }
+}
 
+@media (max-width: 680px) {
   .tabbar {
     position: fixed;
     top: auto;
@@ -1149,6 +1158,21 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
     margin: 0;
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
     z-index: 40;
+  }
+
+  /* Soft fade from the page background up into the content behind the
+     bottom nav, so scrolling cards don't cut off abruptly at its edge.
+     Sits behind the nav (lower z-index) but above the page content. */
+  .bottom-fade {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(110px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(var(--page-bg-rgb), 0.6) 0%, rgba(var(--page-bg-rgb), 0) 100%);
+    pointer-events: none;
+    z-index: 30;
   }
 
   main { padding-bottom: 130px; }
