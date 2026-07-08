@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#eef1fa">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#dde3fb">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18151f">
 <title>Media Journal</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -57,13 +58,14 @@
         <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
         <button type="button" class="chip" data-value="book">📚 Books</button>
         <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
+        <button type="button" class="chip" data-value="game">🎮 Games</button>
         <button type="button" class="chip" data-value="play">🎭 Plays</button>
         <button type="button" class="chip" data-value="restaurant">🍽️ Restaurants</button>
         <button type="button" class="chip" data-value="other">✨ Other</button>
       </div>
     </div>
     <div id="currentlyContainer" class="hidden">
-      <h2 class="section-heading">Currently Reading &amp; Watching</h2>
+      <h2 class="section-heading">Currently Reading, Watching &amp; Playing</h2>
       <div id="currentlyFeed" class="currently-scroll"></div>
     </div>
     <div id="journalFeed" class="journal-feed"></div>
@@ -87,6 +89,7 @@
         <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
         <button type="button" class="chip" data-value="book">📚 Books</button>
         <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
+        <button type="button" class="chip" data-value="game">🎮 Games</button>
         <button type="button" class="chip" data-value="play">🎭 Plays</button>
         <button type="button" class="chip" data-value="restaurant">🍽️ Restaurants</button>
         <button type="button" class="chip" data-value="other">✨ Other</button>
@@ -99,7 +102,7 @@
   <!-- DISCOVER -->
   <section id="tab-discover" class="tab-panel discover-empty">
     <div class="search-row">
-      <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts…">
+      <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts, games…">
       <button id="discoverSearchBtn" class="btn-primary">Search</button>
     </div>
     <div class="chip-row" id="discoverTypeChips" data-value="all">
@@ -108,6 +111,7 @@
       <button type="button" class="chip" data-value="tv">📺 TV Shows</button>
       <button type="button" class="chip" data-value="book">📚 Books</button>
       <button type="button" class="chip" data-value="podcast">🎙️ Podcasts</button>
+      <button type="button" class="chip" data-value="game">🎮 Games</button>
     </div>
     <div id="discoverNotice" class="notice warn hidden"></div>
     <div id="discoverResults" class="card-grid"></div>
@@ -120,7 +124,7 @@
 
 <div id="modalRoot"></div>
 
-<footer class="tmdb-attribution">This product uses the TMDb API but is not endorsed or certified by TMDb.</footer>
+<footer class="tmdb-attribution">This product uses the TMDb API but is not endorsed or certified by TMDb. Game data from RAWG.io.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>

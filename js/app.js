@@ -1,12 +1,16 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable } from './search.js';
+import { search as searchExternal, tmdbAvailable, rawgAvailable } from './search.js';
 
-const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', play: '🎭', restaurant: '🍽️', other: '✨' };
-const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
-const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
-const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', play: 'Seen', restaurant: 'Been', other: 'Done' };
+const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
+const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
+const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books', rawg: '🎮 View on RAWG' };
+const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
+const START_LABEL = { book: '📖 Start Reading', tv: '📺 Start Watching', game: '🎮 Start Playing' };
+const CURRENTLY_LABEL = { book: '📖 Currently Reading', tv: '📺 Currently Watching', game: '🎮 Currently Playing' };
 
-const PROGRESS_TYPES = ['book', 'tv'];
+const PERCENT_PROGRESS_TYPES = ['book', 'game'];
+const EPISODE_PROGRESS_TYPES = ['tv'];
+const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
 const WISHLIST_TAGS = ['⭐ Shortlist', '👍 Recommended'];
 
 const store = createStore();
@@ -241,14 +245,14 @@ function wireReactionTagsField(id, onChange) {
 }
 
 function hasProgress(item) {
-  if (item.media_type === 'book') return item.progress_percent != null;
-  if (item.media_type === 'tv') return item.progress_season != null || item.progress_episode != null;
+  if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) return item.progress_percent != null;
+  if (EPISODE_PROGRESS_TYPES.includes(item.media_type)) return item.progress_season != null || item.progress_episode != null;
   return false;
 }
 
 function progressFieldHtml(item) {
   if (item.status !== 'in_progress') return '';
-  if (item.media_type === 'book') {
+  if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) {
     const pct = item.progress_percent || 0;
     return `
       <div class="field">
@@ -260,7 +264,7 @@ function progressFieldHtml(item) {
         </div>
       </div>`;
   }
-  if (item.media_type === 'tv') {
+  if (EPISODE_PROGRESS_TYPES.includes(item.media_type)) {
     const season = item.progress_season || 1;
     const episode = item.progress_episode || 1;
     return `
@@ -373,7 +377,7 @@ function renderWishlist() {
 }
 
 function currentlyEntryHtml(item) {
-  if (item.media_type === 'book') {
+  if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) {
     const pct = item.progress_percent || 0;
     return `
       <div class="currently-card glass" data-item-id="${item.id}">
@@ -635,7 +639,7 @@ function openEditModal(item) {
     ${descriptionHtml(current.description, 'editDescription')}
     ${
       current.status === 'wishlist' && PROGRESS_TYPES.includes(current.media_type)
-        ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:12px;">${current.media_type === 'book' ? '📖 Start Reading' : '📺 Start Watching'}</button>`
+        ? `<button type="button" class="btn-secondary" id="startProgressBtn" style="width:100%;margin-bottom:12px;">${START_LABEL[current.media_type]}</button>`
         : ''
     }
     ${progressFieldHtml(current)}
@@ -676,7 +680,7 @@ function openEditModal(item) {
     return updated;
   }
 
-  if (current.status === 'in_progress' && current.media_type === 'book') {
+  if (current.status === 'in_progress' && PERCENT_PROGRESS_TYPES.includes(current.media_type)) {
     const slider = el('editProgressPercent');
     const number = el('editProgressPercentNumber');
     const clampPct = (v) => Math.min(100, Math.max(0, v));
@@ -698,7 +702,7 @@ function openEditModal(item) {
       persist({ progress_percent: v });
     });
   }
-  if (current.status === 'in_progress' && current.media_type === 'tv') {
+  if (current.status === 'in_progress' && EPISODE_PROGRESS_TYPES.includes(current.media_type)) {
     el('editProgressSeason').addEventListener('change', (e) => {
       persist({ progress_season: parseInt(e.target.value, 10) || 1 });
     });
@@ -710,10 +714,9 @@ function openEditModal(item) {
   const startBtn = el('startProgressBtn');
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
-      const patch =
-        current.media_type === 'book'
-          ? { status: 'in_progress', progress_percent: 0 }
-          : { status: 'in_progress', progress_season: 1, progress_episode: 1 };
+      const patch = PERCENT_PROGRESS_TYPES.includes(current.media_type)
+        ? { status: 'in_progress', progress_percent: 0 }
+        : { status: 'in_progress', progress_season: 1, progress_episode: 1 };
       await persist(patch);
       closeModal();
       document.querySelector('.tab[data-tab="journal"]').click();
@@ -882,7 +885,7 @@ function openAddModal(prefill = {}) {
     el('addWatchedBtn').textContent = `✓ Mark as ${COMPLETED_VERB[type] || 'Done'}`;
     const eligible = PROGRESS_TYPES.includes(type);
     el('addCurrentlyBtn').classList.toggle('hidden', !eligible);
-    el('addCurrentlyBtn').textContent = type === 'book' ? '📖 Currently Reading' : '📺 Currently Watching';
+    if (eligible) el('addCurrentlyBtn').textContent = CURRENTLY_LABEL[type];
   }
   updateActionButtons();
   el('addType').addEventListener('change', updateActionButtons);
@@ -907,7 +910,7 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
-    const progress = draft.media_type === 'book' ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
+    const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
     const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
     items.unshift(saved);
     renderWishlist();
@@ -955,6 +958,9 @@ async function runDiscoverSearch() {
   const notices = [];
   if (!tmdbAvailable() && (type === 'all' || type === 'movie' || type === 'tv')) {
     notices.push('Add a free TMDb API key to js/config.js to search movies & TV — see README.');
+  }
+  if (!rawgAvailable() && (type === 'all' || type === 'game')) {
+    notices.push('Add a free RAWG API key to js/config.js to search video games — see README.');
   }
 
   const { results, errors } = await searchExternal(query, type);

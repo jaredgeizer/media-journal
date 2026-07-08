@@ -11,9 +11,9 @@ desktop.
 - **Wishlist** — things you want to watch/read/listen to eventually.
 - **Journal** — a blog-style feed of things you've finished, with your
   star rating and notes, newest first.
-- **Discover** — search movies & TV (TMDb), books (Google Books), and
-  podcasts (iTunes) and add results with one tap. Anything else (plays,
-  restaurants, etc.) can be added by hand.
+- **Discover** — search movies & TV (TMDb), books (Google Books),
+  podcasts (iTunes), and video games (RAWG) and add results with one
+  tap. Anything else (plays, restaurants, etc.) can be added by hand.
 
 Clicking any item opens a modal with a **Mark as Watched/Read** button
 (everything except that lives in a second "review" step). That review
@@ -34,11 +34,12 @@ filter (multi-select dropdown of every tag you've used).
 
 From Discover, adding a result gives three options: **Add to Wishlist**,
 **Mark as Watched/Read** (creates the item and opens the review modal),
-or — for books and TV shows only — **Currently Reading/Watching**, which
-files it at the top of the Journal with editable progress (a
-percent-complete for books, season/episode for TV — TV cards also get a
-one-tap **Next Episode** button) until you mark it watched/read, which
-moves it into the journal feed below.
+or — for books, video games, and TV shows only — **Currently
+Reading/Watching/Playing**, which files it at the top of the Journal
+with editable progress (percent-complete for books & games, season/
+episode for TV — TV cards also get a one-tap **Next Episode** button)
+until you mark it watched/read, which moves it into the journal feed
+below.
 
 ## Running it locally (Demo Mode)
 
@@ -53,7 +54,8 @@ Then visit `http://localhost:8000`. With no Supabase config, the app runs
 in **Demo Mode**: your data is saved to `localStorage` in that one
 browser only. It's a good way to try the UI before setting up real
 storage. Book and podcast search work in Demo Mode too (no key needed);
-movie/TV search needs a TMDb key either way (see below).
+movie/TV search needs a TMDb key and video game search needs a RAWG key
+either way (see below).
 
 ## Setting up real storage (Supabase) — for cross-device sync
 
@@ -96,6 +98,8 @@ alter table public.items add column if not exists progress_season smallint;
 alter table public.items add column if not exists progress_episode smallint;
 alter table public.items drop constraint if exists items_status_check;
 alter table public.items add constraint items_status_check check (status in ('wishlist', 'in_progress', 'completed'));
+alter table public.items drop constraint if exists items_media_type_check;
+alter table public.items add constraint items_media_type_check check (media_type in ('movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other'));
 ```
 
 ## Setting up movie & TV search (TMDb)
@@ -125,6 +129,17 @@ quota with everyone else doing the same — you'll occasionally see
    anywhere else if someone finds it in your published JS.
 5. Paste it into `googleBooksApiKey` in `js/config.js`.
 
+## Setting up video game search (RAWG)
+
+1. Create a free account at [rawg.io/apidocs](https://rawg.io/apidocs).
+2. Copy your API key from the API docs page (it's generated automatically
+   for your account).
+3. Paste it into `rawgApiKey` in `js/config.js`.
+
+Free tier is 20,000 requests/month, plenty for personal use. RAWG asks
+that apps using their free API credit them — the footer already
+includes a "Game data from RAWG.io" line, so no extra setup needed there.
+
 ## Deploying to GitHub Pages
 
 1. Fill in `js/config.js` as above and commit it (see the note on the
@@ -153,9 +168,9 @@ natural next step.
 index.html          Main app (Wishlist / Journal / Discover)
 login.html           Sign in / sign up (Supabase mode only)
 css/style.css        Liquid-glass design system
-js/config.js          Your Supabase + TMDb keys (fill in, safe to commit)
+js/config.js          Your Supabase + API keys (fill in, safe to commit)
 js/storage.js         Data layer: Supabase, or localStorage Demo Mode
-js/search.js           TMDb / Google Books / iTunes search integrations
+js/search.js           TMDb / Google Books / iTunes / RAWG search integrations
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
 ```

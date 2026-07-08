@@ -8,7 +8,7 @@ create table if not exists public.items (
   user_id        uuid not null references auth.users (id) on delete cascade,
 
   -- what it is
-  media_type     text not null check (media_type in ('movie', 'tv', 'book', 'podcast', 'play', 'restaurant', 'other')),
+  media_type     text not null check (media_type in ('movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other')),
   title          text not null,
   creator        text,        -- director / author / host / etc.
   year           text,
@@ -26,8 +26,8 @@ create table if not exists public.items (
   notes          text,
   tags           text[] not null default '{}',
 
-  -- progress tracking (books & TV shows only, while status = 'in_progress')
-  progress_percent smallint check (progress_percent between 0 and 100),  -- books
+  -- progress tracking (books, video games & TV shows only, while status = 'in_progress')
+  progress_percent smallint check (progress_percent between 0 and 100),  -- books & video games
   progress_season   smallint,                                            -- TV shows
   progress_episode  smallint,                                            -- TV shows
 

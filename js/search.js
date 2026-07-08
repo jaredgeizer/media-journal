@@ -6,6 +6,7 @@
 // - Books: Google Books (works without a key, but shares a low global quota —
 //   add a free Google API key in js/config.js to get your own quota)
 // - Podcasts: iTunes Search API (no key required)
+// - Video games: RAWG.io (needs a free API key in js/config.js)
 // - Plays / restaurants / other: no free search API wired up — added manually.
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
@@ -22,6 +23,15 @@ export function tmdbAvailable() {
 function googleBooksKey() {
   const k = (window.MEDIA_JOURNAL_CONFIG || {}).googleBooksApiKey;
   return k && !k.startsWith('YOUR_') ? k : null;
+}
+
+function rawgKey() {
+  const k = (window.MEDIA_JOURNAL_CONFIG || {}).rawgApiKey;
+  return k && !k.startsWith('YOUR_') ? k : null;
+}
+
+export function rawgAvailable() {
+  return !!rawgKey();
 }
 
 async function searchMovies(query) {
@@ -120,11 +130,45 @@ async function searchPodcasts(query) {
   }));
 }
 
+async function searchGames(query) {
+  const key = rawgKey();
+  if (!key) return [];
+  const res = await fetch(
+    `https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(query)}&page_size=20`
+  );
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.detail) detail = ` — ${errBody.detail}`;
+    } catch {
+      // response wasn't JSON; ignore
+    }
+    throw new Error(`Game search failed (${res.status})${detail}`);
+  }
+  const data = await res.json();
+  return (data.results || []).map((r) => {
+    const genres = (r.genres || []).map((g) => g.name).join(', ');
+    return {
+      media_type: 'game',
+      title: r.name,
+      creator: null,
+      year: (r.released || '').slice(0, 4) || null,
+      poster_url: r.background_image || null,
+      description: genres || null,
+      external_source: 'rawg',
+      external_id: String(r.id),
+      external_url: r.slug ? `https://rawg.io/games/${r.slug}` : null,
+    };
+  });
+}
+
 const SEARCHERS = {
   movie: searchMovies,
   tv: searchTV,
   book: searchBooks,
   podcast: searchPodcasts,
+  game: searchGames,
 };
 
 export const SEARCHABLE_TYPES = Object.keys(SEARCHERS);
