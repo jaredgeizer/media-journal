@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
    Media Journal — "Liquid Glass" design system
-   Frosted, translucent panels floating over a soft animated gradient,
+   Frosted, translucent panels floating over a solid page background,
    inspired by Apple's iOS/visionOS glass material. Light + dark aware.
 ------------------------------------------------------------------------ */
 
@@ -22,7 +22,7 @@
   --text-primary: #1c1c1e;
   --text-secondary: rgba(60, 60, 67, 0.75);
   --text-tertiary: rgba(60, 60, 67, 0.5);
-  --page-bg: #eef1fa;
+  --page-bg: #f1f1f1;
   --divider: rgba(60, 60, 67, 0.15);
   --danger: #ff3b30;
   --star-on: #ffb020;
@@ -38,7 +38,7 @@
     --text-primary: #f2f2f7;
     --text-secondary: rgba(235, 235, 245, 0.72);
     --text-tertiary: rgba(235, 235, 245, 0.5);
-    --page-bg: #0e0e14;
+    --page-bg: #000000;
     --divider: rgba(255, 255, 255, 0.12);
     --star-off: rgba(235, 235, 245, 0.3);
   }
@@ -50,7 +50,7 @@
   --glass-border: rgba(255, 255, 255, 0.6);
   --text-primary: #1c1c1e;
   --text-secondary: rgba(60, 60, 67, 0.75);
-  --page-bg: #eef1fa;
+  --page-bg: #f1f1f1;
 }
 
 :root[data-theme="dark"] {
@@ -59,7 +59,7 @@
   --glass-border: rgba(255, 255, 255, 0.14);
   --text-primary: #f2f2f7;
   --text-secondary: rgba(235, 235, 245, 0.72);
-  --page-bg: #0e0e14;
+  --page-bg: #000000;
 }
 
 * { box-sizing: border-box; }
@@ -76,25 +76,6 @@ body {
   background: var(--page-bg);
   min-height: 100vh;
   overflow-x: hidden;
-}
-
-/* Decorative animated mesh gradient behind everything */
-.bg-mesh {
-  position: fixed;
-  inset: -10%;
-  z-index: -1;
-  background:
-    radial-gradient(circle at 15% 20%, rgba(var(--accent), 0.35), transparent 45%),
-    radial-gradient(circle at 85% 15%, rgba(var(--accent-2), 0.3), transparent 45%),
-    radial-gradient(circle at 20% 85%, rgba(var(--accent-3), 0.28), transparent 45%),
-    radial-gradient(circle at 90% 80%, rgba(var(--accent-4), 0.25), transparent 45%);
-  filter: blur(60px) saturate(140%);
-  animation: drift 30s ease-in-out infinite alternate;
-}
-
-@keyframes drift {
-  0%   { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-3%, 2%) scale(1.05); }
 }
 
 /* ---------- Glass primitives ---------- */
@@ -518,7 +499,10 @@ button.discover-fab.active {
   display: flex;
   flex-direction: column;
   position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
+.currently-card:hover { transform: translateY(-3px); }
 
 .currently-card-poster {
   width: 100%;
