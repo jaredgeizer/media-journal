@@ -20,6 +20,26 @@ export function tmdbAvailable() {
   return !!tmdbToken();
 }
 
+// Season/episode counts aren't in the search results — needs its own call
+// to the TV Details endpoint, keyed by the TMDb id (not our own item id).
+export async function getTVSeasonInfo(tmdbId) {
+  const token = tmdbToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const seasons = (data.seasons || [])
+      .filter((s) => s.season_number > 0)
+      .map((s) => ({ seasonNumber: s.season_number, episodeCount: s.episode_count }));
+    return seasons.length ? { seasons } : null;
+  } catch {
+    return null;
+  }
+}
+
 function googleBooksKey() {
   const k = (window.MEDIA_JOURNAL_CONFIG || {}).googleBooksApiKey;
   return k && !k.startsWith('YOUR_') ? k : null;

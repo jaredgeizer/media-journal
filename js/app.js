@@ -1,5 +1,5 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable, rawgAvailable } from './search.js';
+import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo } from './search.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
@@ -250,6 +250,31 @@ function hasProgress(item) {
   return false;
 }
 
+// Season/episode counts for TMDb-sourced TV shows, fetched on demand and
+// cached in memory for the session (avoids refetching on every render).
+const tvSeasonInfoCache = new Map();
+
+function tmdbTvId(item) {
+  if (item.media_type !== 'tv' || item.external_source !== 'tmdb' || !item.external_id) return null;
+  const match = /^tv-(\d+)$/.exec(item.external_id);
+  return match ? match[1] : null;
+}
+
+async function getSeasonInfoCached(item) {
+  const tmdbId = tmdbTvId(item);
+  if (!tmdbId) return null;
+  if (tvSeasonInfoCache.has(tmdbId)) return tvSeasonInfoCache.get(tmdbId);
+  const info = await getTVSeasonInfo(tmdbId);
+  tvSeasonInfoCache.set(tmdbId, info);
+  return info;
+}
+
+function episodeCountForSeason(info, seasonNumber) {
+  if (!info) return null;
+  const season = info.seasons.find((s) => s.seasonNumber === seasonNumber);
+  return season ? season.episodeCount : null;
+}
+
 function progressFieldHtml(item) {
   if (item.status !== 'in_progress') return '';
   if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) {
@@ -273,8 +298,10 @@ function progressFieldHtml(item) {
         <div class="progress-row">
           <span class="progress-subtext">Season</span>
           <input type="number" id="editProgressSeason" min="1" value="${season}">
+          <span class="progress-subtext" id="editSeasonTotal"></span>
           <span class="progress-subtext">Episode</span>
           <input type="number" id="editProgressEpisode" min="1" value="${episode}">
+          <span class="progress-subtext" id="editEpisodeTotal"></span>
         </div>
       </div>`;
   }
@@ -400,7 +427,7 @@ function currentlyEntryHtml(item) {
       ${posterOrEmoji(item, 'currently-card-poster')}
       <div class="card-body">
         <p class="card-title">${escapeHtml(item.title)}</p>
-        <p class="progress-badge">${progressText}</p>
+        <p class="progress-badge" id="progressBadge-${item.id}">${progressText}</p>
         <button type="button" class="btn-secondary next-episode-btn" data-next-episode-id="${item.id}">Next Episode</button>
       </div>
     </div>`;
@@ -423,12 +450,35 @@ function renderCurrently() {
       e.stopPropagation();
       const id = btn.dataset.nextEpisodeId;
       const current = items.find((i) => i.id === id);
-      const updated = await store.updateItem(id, { progress_episode: (current.progress_episode || 1) + 1 });
+      const season = current.progress_season || 1;
+      const episode = current.progress_episode || 1;
+      const info = await getSeasonInfoCached(current);
+      const epCount = episodeCountForSeason(info, season);
+      const hasNextSeason = info && info.seasons.some((s) => s.seasonNumber === season + 1);
+      const patch =
+        epCount && episode >= epCount && hasNextSeason
+          ? { progress_season: season + 1, progress_episode: 1 }
+          : { progress_episode: episode + 1 };
+      const updated = await store.updateItem(id, patch);
       const idx = items.findIndex((i) => i.id === id);
       items[idx] = updated;
       renderCurrently();
     });
   });
+
+  list
+    .filter((i) => tmdbTvId(i))
+    .forEach((i) => {
+      getSeasonInfoCached(i).then((info) => {
+        if (!info) return;
+        const badge = el(`progressBadge-${i.id}`);
+        if (!badge) return;
+        const season = i.progress_season || 1;
+        const episode = i.progress_episode || 1;
+        const epCount = episodeCountForSeason(info, season);
+        badge.textContent = `S${season} of ${info.seasons.length} · E${episode}${epCount ? ' of ' + epCount : ''}`;
+      });
+    });
 
   const clampPct = (v) => Math.min(100, Math.max(0, v));
 
@@ -708,6 +758,22 @@ function openEditModal(item) {
     });
     el('editProgressEpisode').addEventListener('change', (e) => {
       persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
+    });
+
+    getSeasonInfoCached(current).then((info) => {
+      const seasonInput = el('editProgressSeason');
+      if (!info || !seasonInput) return;
+      const episodeInput = el('editProgressEpisode');
+      const seasonTotal = el('editSeasonTotal');
+      const episodeTotal = el('editEpisodeTotal');
+      seasonTotal.textContent = `of ${info.seasons.length}`;
+      const updateEpisodeHint = () => {
+        const epCount = episodeCountForSeason(info, parseInt(seasonInput.value, 10) || 1);
+        episodeTotal.textContent = epCount ? `of ${epCount}` : '';
+        if (epCount) episodeInput.max = epCount;
+      };
+      updateEpisodeHint();
+      seasonInput.addEventListener('input', updateEpisodeHint);
     });
   }
 
