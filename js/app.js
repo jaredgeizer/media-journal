@@ -165,7 +165,12 @@ el('importExportBtn').addEventListener('click', () => {
 
 el('cleanupJournalBtn').addEventListener('click', () => {
   el('accountDropdown').classList.add('hidden');
-  openCleanupModal();
+  openCleanupModal('completed');
+});
+
+el('cleanupBacklogBtn').addEventListener('click', () => {
+  el('accountDropdown').classList.add('hidden');
+  openCleanupModal('wishlist');
 });
 
 document.addEventListener('click', (e) => {
@@ -970,15 +975,23 @@ function openModalWithContent(innerHtml) {
   });
 }
 
-// ---------- Clean up Journal ----------
-// Finds completed items missing a poster or a watched date — almost every
-// item imported from Goodreads/Fable/Letterboxd, since those exports never
-// include a poster/description and often omit a per-item finish date — and
-// offers a one-click auto-matched fix per item, without ever overwriting
-// data that's already there.
+// ---------- Clean up Journal / Backlog ----------
+// Finds completed items missing a poster or a watched date, or backlog
+// items missing a poster — almost every item imported from Goodreads/
+// Fable/Letterboxd, since those exports never include a poster/description
+// and often omit a per-item finish date — and offers a one-click
+// auto-matched fix per item, without ever overwriting data that's already
+// there.
 
-function cleanupCandidates() {
-  return items.filter((i) => i.status === 'completed' && (!i.poster_url || !i.date_completed));
+// Journal items can be missing a poster or a watched date; Backlog items
+// have no watched date to speak of, so only a missing poster counts there.
+const CLEANUP_LABELS = {
+  completed: { title: 'Clean up Journal', gap: 'a poster or watched date', gapDone: 'a poster and a watched date' },
+  wishlist: { title: 'Clean up Backlog', gap: 'a poster', gapDone: 'a poster' },
+};
+
+function cleanupCandidates(status) {
+  return items.filter((i) => i.status === status && (!i.poster_url || (status === 'completed' && !i.date_completed)));
 }
 
 function bestCleanupMatch(item, results) {
@@ -1044,18 +1057,19 @@ function cleanupNoMatchHtml() {
   return `<p class="cleanup-no-match">No automatic match found — <button type="button" class="link-btn" data-open-edit>edit manually</button>.</p>`;
 }
 
-// Once every gap a row started with is closed, drop it from the list so the
-// modal visibly shrinks as items get fixed.
+// Once every gap a row started with is closed (no date field or match slot
+// left in it), drop it from the list so the modal visibly shrinks as items
+// get fixed — checked against the row's own remaining fields rather than
+// the item's, since Backlog rows never had a date field to begin with.
 function maybeRemoveResolvedRow(item) {
-  if (item.poster_url && item.date_completed) {
-    const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
-    if (row) row.remove();
+  const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
+  if (row && !row.querySelector('.cleanup-date-field') && !row.querySelector('[data-match-slot]')) {
+    row.remove();
   }
   const list = el('cleanupList');
   const remaining = list.children.length;
-  el('cleanupSubtitle').textContent = remaining
-    ? `${remaining} item${remaining === 1 ? '' : 's'} missing a poster or watched date.`
-    : 'All caught up!';
+  const gap = list.dataset.cleanupGap;
+  el('cleanupSubtitle').textContent = remaining ? `${remaining} item${remaining === 1 ? '' : 's'} missing ${gap}.` : 'All caught up!';
   if (!remaining) {
     list.classList.add('hidden');
     el('cleanupAllDone').classList.remove('hidden');
@@ -1123,7 +1137,7 @@ async function loadCleanupMatch(item) {
 
 function cleanupRowHtml(item) {
   const needsPoster = !item.poster_url;
-  const needsDate = !item.date_completed;
+  const needsDate = item.status === 'completed' && !item.date_completed;
   return `
     <div class="cleanup-row glass" data-item-id="${item.id}">
       ${posterOrEmoji(item, 'cleanup-poster')}
@@ -1151,19 +1165,20 @@ function cleanupRowHtml(item) {
     </div>`;
 }
 
-function openCleanupModal() {
-  const candidates = cleanupCandidates();
+function openCleanupModal(status) {
+  const labels = CLEANUP_LABELS[status];
+  const candidates = cleanupCandidates(status);
   const html = `
     <div class="modal-header">
       <div style="flex:1">
-        <p class="modal-title">Clean up Journal</p>
-        <p class="modal-subtitle" id="cleanupSubtitle">${candidates.length} item${candidates.length === 1 ? '' : 's'} missing a poster or watched date.</p>
+        <p class="modal-title">${labels.title}</p>
+        <p class="modal-subtitle" id="cleanupSubtitle">${candidates.length} item${candidates.length === 1 ? '' : 's'} missing ${labels.gap}.</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     ${candidates.length ? `<button type="button" class="btn-secondary" id="cleanupApplyAllBtn" style="width:100%;margin-bottom:14px;" disabled>Use all suggested posters</button>` : ''}
-    <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}">${candidates.map(cleanupRowHtml).join('')}</div>
-    <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has a poster and a watched date.</p>
+    <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}" data-cleanup-gap="${escapeHtml(labels.gap)}">${candidates.map(cleanupRowHtml).join('')}</div>
+    <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has ${labels.gapDone}.</p>
   `;
   openModalWithContent(html);
   el('modalCloseBtn').addEventListener('click', closeModal);
