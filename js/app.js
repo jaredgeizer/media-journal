@@ -1,5 +1,5 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo } from './search.js';
+import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
@@ -12,19 +12,19 @@ const CURRENTLY_LABEL = { book: '📖 Currently Reading', tv: '📺 Currently Wa
 const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
-const WISHLIST_TAGS = ['⭐ Shortlist', '👍 Recommended'];
+const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended'];
 const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other'];
-const QUICK_TAGS = { journal: ['❤️ Favorite'], wishlist: ['⭐ Shortlist'] };
+const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
 
 const store = createStore();
 let items = [];
-let wishlistSelectedTags = new Set();
+let backlogSelectedTags = new Set();
 let journalSelectedTags = new Set();
 let journalSelectedRatings = new Set();
-let wishlistSelectedTypes = new Set();
+let backlogSelectedTypes = new Set();
 let journalSelectedTypes = new Set();
 let journalSortKey = 'completed_desc';
-let wishlistSortKey = 'added_desc';
+let backlogSortKey = 'added_desc';
 
 const el = (id) => document.getElementById(id);
 
@@ -136,7 +136,7 @@ async function migrateFavoriteTag() {
 async function loadItems() {
   items = await store.listItems();
   await migrateFavoriteTag();
-  renderWishlist();
+  renderBacklog();
   renderJournal();
 }
 
@@ -155,6 +155,11 @@ el('importExportBtn').addEventListener('click', () => {
   openImportExportModal();
 });
 
+el('cleanupJournalBtn').addEventListener('click', () => {
+  el('accountDropdown').classList.add('hidden');
+  openCleanupModal();
+});
+
 document.addEventListener('click', (e) => {
   const dropdown = el('accountDropdown');
   if (!dropdown.classList.contains('hidden') && !e.target.closest('.account-menu')) {
@@ -171,7 +176,7 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
   document.querySelectorAll(`.tab[data-tab="${tabName}"]`).forEach((b) => b.classList.add('active'));
   el('tab-' + tabName).classList.add('active');
-  if (tabName === 'journal' || tabName === 'wishlist') {
+  if (tabName === 'journal' || tabName === 'backlog') {
     el('discoverQuery').value = '';
     el('headerSearchInput').value = '';
   }
@@ -208,7 +213,7 @@ wireRecentSearchDropdown(el('headerSearchInput'), el('headerRecentDropdown'), (q
 });
 
 // ---------- Responsive nav placement ----------
-// On desktop, the Journal/Wishlist pills live in the header next to the
+// On desktop, the Journal/Backlog pills live in the header next to the
 // title/account icon; on mobile they live in their own fixed bottom bar
 // alongside the search button. Physically relocate the pills node rather
 // than duplicating it, so its listeners keep working either way. The
@@ -539,21 +544,21 @@ const JOURNAL_SORTS = {
   rating_desc: { label: 'Ranking, highest first', cmp: (a, b) => (b.rating || 0) - (a.rating || 0) },
 };
 
-const WISHLIST_SORTS = {
+const BACKLOG_SORTS = {
   added_desc: { label: 'Date added, newest first', cmp: (a, b) => new Date(b.date_added) - new Date(a.date_added) },
   added_asc: { label: 'Date added, oldest first', cmp: (a, b) => new Date(a.date_added) - new Date(b.date_added) },
   release_desc: { label: 'Release date, newest first', cmp: (a, b) => (itemYear(b) || 0) - (itemYear(a) || 0) },
 };
 
-function renderWishlist() {
+function renderBacklog() {
   const list = items
     .filter((i) => i.status === 'wishlist')
-    .filter((i) => typeMatches(i, wishlistSelectedTypes))
-    .filter((i) => wishlistSelectedTags.size === 0 || (i.tags || []).some((t) => wishlistSelectedTags.has(t)))
-    .sort(WISHLIST_SORTS[wishlistSortKey].cmp);
-  const grid = el('wishlistGrid');
+    .filter((i) => typeMatches(i, backlogSelectedTypes))
+    .filter((i) => backlogSelectedTags.size === 0 || (i.tags || []).some((t) => backlogSelectedTags.has(t)))
+    .sort(BACKLOG_SORTS[backlogSortKey].cmp);
+  const grid = el('backlogGrid');
   grid.innerHTML = list.map(cardHtml).join('');
-  el('wishlistEmpty').classList.toggle('hidden', list.length > 0);
+  el('backlogEmpty').classList.toggle('hidden', list.length > 0);
   grid.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
@@ -706,12 +711,12 @@ function typeChipsHtml(id, selectedTypes) {
 
 function wireTypeChips(id, kind) {
   wireTagChips(id, () => {
-    const selectedTypes = kind === 'journal' ? journalSelectedTypes : wishlistSelectedTypes;
+    const selectedTypes = kind === 'journal' ? journalSelectedTypes : backlogSelectedTypes;
     selectedTypes.clear();
     getActiveChipValues(id).forEach((v) => selectedTypes.add(v));
     syncFilterUI(kind);
     if (kind === 'journal') renderJournal();
-    else renderWishlist();
+    else renderBacklog();
   });
 }
 
@@ -722,7 +727,7 @@ function sortOptionsHtml(name, sorts, currentKey) {
 }
 
 function renderQuickTags(kind) {
-  const selected = kind === 'journal' ? journalSelectedTags : wishlistSelectedTags;
+  const selected = kind === 'journal' ? journalSelectedTags : backlogSelectedTags;
   const container = el(`${kind}QuickTags`);
   container.innerHTML = QUICK_TAGS[kind]
     .map((t) => `<button type="button" class="chip${selected.has(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`)
@@ -733,20 +738,20 @@ function renderQuickTags(kind) {
 }
 
 function toggleQuickTag(kind, tag) {
-  const selected = kind === 'journal' ? journalSelectedTags : wishlistSelectedTags;
+  const selected = kind === 'journal' ? journalSelectedTags : backlogSelectedTags;
   if (selected.has(tag)) selected.delete(tag);
   else selected.add(tag);
   syncFilterUI(kind);
   if (kind === 'journal') renderJournal();
-  else renderWishlist();
+  else renderBacklog();
 }
 
 // Keeps the quick chips, the Filter button's "active" dot, and (if open)
 // the dropdown's own checkboxes/chips all reflecting the same state,
 // regardless of which surface the last change came from.
 function syncFilterUI(kind) {
-  const selectedTags = kind === 'journal' ? journalSelectedTags : wishlistSelectedTags;
-  const selectedTypes = kind === 'journal' ? journalSelectedTypes : wishlistSelectedTypes;
+  const selectedTags = kind === 'journal' ? journalSelectedTags : backlogSelectedTags;
+  const selectedTypes = kind === 'journal' ? journalSelectedTypes : backlogSelectedTypes;
   const selectedRatings = kind === 'journal' ? journalSelectedRatings : null;
 
   el(`${kind}QuickTags`).querySelectorAll('.chip').forEach((chip) => {
@@ -768,51 +773,52 @@ function syncFilterUI(kind) {
   }
 }
 
-function renderWishlistFilterDropdown() {
-  const dropdown = el('wishlistFilterDropdown');
+function renderBacklogFilterDropdown() {
+  const dropdown = el('backlogFilterDropdown');
   dropdown.innerHTML = `
     <div class="tag-filter-section-heading">Categories</div>
-    ${typeChipsHtml('wishlistFilterTypeChips', wishlistSelectedTypes)}
+    ${typeChipsHtml('backlogFilterTypeChips', backlogSelectedTypes)}
     <div class="tag-filter-section-heading">Tags</div>
-    ${WISHLIST_TAGS.map((t) => `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${wishlistSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`).join('')}
+    ${BACKLOG_TAGS.map((t) => `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${backlogSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`).join('')}
     <div class="tag-filter-section-heading">Sort by</div>
-    ${sortOptionsHtml('wishlistSort', WISHLIST_SORTS, wishlistSortKey)}
-    <button type="button" class="tag-filter-reset" id="wishlistFilterReset">Reset filters</button>
+    ${sortOptionsHtml('backlogSort', BACKLOG_SORTS, backlogSortKey)}
+    <button type="button" class="tag-filter-reset" id="backlogFilterReset">Reset filters</button>
   `;
 
-  wireTypeChips('wishlistFilterTypeChips', 'wishlist');
+  wireTypeChips('backlogFilterTypeChips', 'backlog');
 
   dropdown.querySelectorAll('input[data-filter-tag]').forEach((cb) => {
     cb.addEventListener('change', () => {
-      if (cb.checked) wishlistSelectedTags.add(cb.value);
-      else wishlistSelectedTags.delete(cb.value);
-      syncFilterUI('wishlist');
-      renderWishlist();
+      if (cb.checked) backlogSelectedTags.add(cb.value);
+      else backlogSelectedTags.delete(cb.value);
+      syncFilterUI('backlog');
+      renderBacklog();
     });
   });
 
-  dropdown.querySelectorAll('input[name="wishlistSort"]').forEach((radio) => {
+  dropdown.querySelectorAll('input[name="backlogSort"]').forEach((radio) => {
     radio.addEventListener('change', () => {
-      wishlistSortKey = radio.value;
-      renderWishlist();
+      backlogSortKey = radio.value;
+      renderBacklog();
     });
   });
 
-  el('wishlistFilterReset').addEventListener('click', (e) => {
+  el('backlogFilterReset').addEventListener('click', (e) => {
     e.stopPropagation();
-    wishlistSelectedTypes.clear();
-    wishlistSelectedTags.clear();
-    renderWishlistFilterDropdown();
-    syncFilterUI('wishlist');
-    renderWishlist();
+    backlogSelectedTypes.clear();
+    backlogSelectedTags.clear();
+    renderBacklogFilterDropdown();
+    syncFilterUI('backlog');
+    renderBacklog();
   });
 }
 
-el('wishlistFilterBtn').addEventListener('click', (e) => {
+el('backlogFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  renderWishlistFilterDropdown();
-  el('wishlistFilterDropdown').classList.toggle('hidden');
-  syncFilterUI('wishlist');
+  renderBacklogFilterDropdown();
+  el('backlogFilterDropdown').classList.toggle('hidden');
+  syncFilterUI('backlog');
+  updateFilterScrim();
 });
 
 function renderJournalFilterDropdown() {
@@ -889,10 +895,16 @@ el('journalFilterBtn').addEventListener('click', (e) => {
   renderJournalFilterDropdown();
   el('journalFilterDropdown').classList.toggle('hidden');
   syncFilterUI('journal');
+  updateFilterScrim();
 });
 
 renderQuickTags('journal');
-renderQuickTags('wishlist');
+renderQuickTags('backlog');
+
+function updateFilterScrim() {
+  const anyOpen = !el('journalFilterDropdown').classList.contains('hidden') || !el('backlogFilterDropdown').classList.contains('hidden');
+  el('filterScrim').classList.toggle('hidden', !anyOpen);
+}
 
 document.addEventListener('click', (e) => {
   document.querySelectorAll('.tag-filter-dropdown').forEach((dropdown) => {
@@ -901,7 +913,8 @@ document.addEventListener('click', (e) => {
     }
   });
   syncFilterUI('journal');
-  syncFilterUI('wishlist');
+  syncFilterUI('backlog');
+  updateFilterScrim();
 });
 
 // ---------- Stars widget ----------
@@ -945,6 +958,211 @@ function openModalWithContent(innerHtml) {
   el('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
+}
+
+// ---------- Clean up Journal ----------
+// Finds completed items missing a poster or a watched date — almost every
+// item imported from Goodreads/Fable/Letterboxd, since those exports never
+// include a poster/description and often omit a per-item finish date — and
+// offers a one-click auto-matched fix per item, without ever overwriting
+// data that's already there.
+
+function cleanupCandidates() {
+  return items.filter((i) => i.status === 'completed' && (!i.poster_url || !i.date_completed));
+}
+
+function bestCleanupMatch(item, results) {
+  if (!results.length) return null;
+  const titleNorm = (item.title || '').trim().toLowerCase();
+  const exact = results.filter((r) => (r.title || '').trim().toLowerCase() === titleNorm);
+  const pool = (exact.length ? exact : results).slice().sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  if (item.year) {
+    const yearMatch = pool.find((r) => r.year === item.year);
+    if (yearMatch) return yearMatch;
+  }
+  return pool[0];
+}
+
+async function runWithConcurrency(list, limit, fn) {
+  const queue = [...list];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length) {
+      await fn(queue.shift());
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function applyCleanupMatch(item, match) {
+  const patch = {};
+  if (!item.poster_url && match.poster_url) patch.poster_url = match.poster_url;
+  if (!item.description && match.description) patch.description = match.description;
+  if (!item.year && match.year) patch.year = match.year;
+  if (!item.creator && match.creator) patch.creator = match.creator;
+  const updated = await store.updateItem(item.id, patch);
+  const idx = items.findIndex((i) => i.id === item.id);
+  if (idx !== -1) items[idx] = updated;
+  renderJournal();
+  renderBacklog();
+  return updated;
+}
+
+async function applyCleanupDate(item, iso) {
+  const updated = await store.updateItem(item.id, { date_completed: iso });
+  const idx = items.findIndex((i) => i.id === item.id);
+  if (idx !== -1) items[idx] = updated;
+  renderJournal();
+  renderBacklog();
+  return updated;
+}
+
+function cleanupMatchSuggestionHtml(match) {
+  return `
+    <div class="cleanup-match-suggestion">
+      ${posterOrEmoji(match, 'cleanup-match-poster')}
+      <div class="cleanup-match-info">
+        <p class="cleanup-match-title">${escapeHtml(match.title)}${match.year ? ` <span class="cleanup-row-year">(${escapeHtml(match.year)})</span>` : ''}</p>
+        <div class="cleanup-match-actions">
+          <button type="button" class="btn-primary btn-small" data-apply-match>Use this poster</button>
+          <button type="button" class="btn-ghost btn-small" data-skip-match>Not a match</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cleanupNoMatchHtml() {
+  return `<p class="cleanup-no-match">No automatic match found — <button type="button" class="link-btn" data-open-edit>edit manually</button>.</p>`;
+}
+
+// Once every gap a row started with is closed, drop it from the list so the
+// modal visibly shrinks as items get fixed.
+function maybeRemoveResolvedRow(item) {
+  if (item.poster_url && item.date_completed) {
+    const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
+    if (row) row.remove();
+  }
+  const list = el('cleanupList');
+  const remaining = list.children.length;
+  el('cleanupSubtitle').textContent = remaining
+    ? `${remaining} item${remaining === 1 ? '' : 's'} missing a poster or watched date.`
+    : 'All caught up!';
+  if (!remaining) {
+    list.classList.add('hidden');
+    el('cleanupAllDone').classList.remove('hidden');
+  }
+}
+
+function wireCleanupMatchActions(slot, item, match) {
+  slot.querySelector('[data-apply-match]').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const updated = await applyCleanupMatch(item, match);
+    item = updated;
+    const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
+    if (row) row.querySelector('.cleanup-poster').outerHTML = posterOrEmoji(item, 'cleanup-poster');
+    if (updated.poster_url) {
+      slot.remove();
+    } else {
+      slot.innerHTML = `<p class="cleanup-no-match">That match didn't include a poster — <button type="button" class="link-btn" data-open-edit>edit manually</button>.</p>`;
+      wireCleanupNoMatch(slot, item);
+    }
+    maybeRemoveResolvedRow(item);
+  });
+  slot.querySelector('[data-skip-match]').addEventListener('click', () => {
+    slot.innerHTML = cleanupNoMatchHtml();
+    wireCleanupNoMatch(slot, item);
+  });
+}
+
+function wireCleanupNoMatch(slot, item) {
+  const btn = slot.querySelector('[data-open-edit]');
+  if (btn) btn.addEventListener('click', () => openEditModal(item));
+}
+
+async function loadCleanupMatch(item) {
+  const slot = document.querySelector(`.cleanup-row[data-item-id="${item.id}"] [data-match-slot]`);
+  if (!slot) return;
+  let match = null;
+  try {
+    const { results } = await searchExternal(item.title, item.media_type);
+    match = bestCleanupMatch(item, results);
+  } catch {
+    match = null;
+  }
+  if (!document.body.contains(slot)) return; // row was removed/resolved while the search was in flight
+  if (match) {
+    slot.innerHTML = cleanupMatchSuggestionHtml(match);
+    wireCleanupMatchActions(slot, item, match);
+  } else {
+    slot.innerHTML = cleanupNoMatchHtml();
+    wireCleanupNoMatch(slot, item);
+  }
+}
+
+function cleanupRowHtml(item) {
+  const needsPoster = !item.poster_url;
+  const needsDate = !item.date_completed;
+  return `
+    <div class="cleanup-row glass" data-item-id="${item.id}">
+      ${posterOrEmoji(item, 'cleanup-poster')}
+      <div class="cleanup-row-body">
+        <p class="cleanup-row-title">${escapeHtml(item.title)}${item.year ? ` <span class="cleanup-row-year">(${escapeHtml(item.year)})</span>` : ''}</p>
+        <p class="cleanup-row-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+        ${
+          needsDate
+            ? `<div class="field cleanup-date-field">
+                <label>Date ${COMPLETED_VERB[item.media_type] || 'Done'}</label>
+                <input type="date" data-cleanup-date>
+              </div>`
+            : ''
+        }
+        ${
+          needsPoster
+            ? `<div class="cleanup-match-slot" data-match-slot>${
+                SEARCHABLE_TYPES.includes(item.media_type)
+                  ? '<p class="cleanup-match-loading">Searching for a match…</p>'
+                  : cleanupNoMatchHtml()
+              }</div>`
+            : ''
+        }
+      </div>
+    </div>`;
+}
+
+function openCleanupModal() {
+  const candidates = cleanupCandidates();
+  const html = `
+    <div class="modal-header">
+      <div style="flex:1">
+        <p class="modal-title">Clean up Journal</p>
+        <p class="modal-subtitle" id="cleanupSubtitle">${candidates.length} item${candidates.length === 1 ? '' : 's'} missing a poster or watched date.</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}">${candidates.map(cleanupRowHtml).join('')}</div>
+    <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has a poster and a watched date. 🎉</p>
+  `;
+  openModalWithContent(html);
+  el('modalCloseBtn').addEventListener('click', closeModal);
+
+  el('cleanupList').querySelectorAll('[data-cleanup-date]').forEach((input) => {
+    input.addEventListener('change', async (e) => {
+      const row = e.target.closest('.cleanup-row');
+      const itemId = row.dataset.itemId;
+      const item = items.find((i) => i.id === itemId);
+      if (!item || !e.target.value) return;
+      const updated = await applyCleanupDate(item, dateInputToIso(e.target.value));
+      row.querySelector('.cleanup-date-field').remove();
+      maybeRemoveResolvedRow(updated);
+    });
+  });
+
+  el('cleanupList').querySelectorAll('.cleanup-row [data-match-slot] [data-open-edit]').forEach((btn) => {
+    const item = items.find((i) => i.id === btn.closest('.cleanup-row').dataset.itemId);
+    if (item) wireCleanupNoMatch(btn.closest('[data-match-slot]'), item);
+  });
+
+  const searchable = candidates.filter((i) => !i.poster_url && SEARCHABLE_TYPES.includes(i.media_type));
+  runWithConcurrency(searchable, 3, loadCleanupMatch);
 }
 
 // ---------- Import / Export ----------
@@ -1051,7 +1269,7 @@ function openImportPreviewModal(sourceLabel, parsedItems) {
       confirmBtn.textContent = 'Importing…';
       const added = await store.addItems(toAdd);
       items = [...items, ...added];
-      renderWishlist();
+      renderBacklog();
       renderJournal();
       openImportResultModal(sourceLabel, added.length);
     });
@@ -1090,7 +1308,7 @@ function openEditModal(item) {
     ${descriptionHtml(current.description, 'editDescription')}
     ${
       current.status === 'wishlist'
-        ? `<div class="field" id="wishlistTagField"><label>Tags</label>${tagChipsHtml('editWishlistTagChips', WISHLIST_TAGS, current.tags || [])}</div>`
+        ? `<div class="field" id="backlogTagField"><label>Tags</label>${tagChipsHtml('editBacklogTagChips', BACKLOG_TAGS, current.tags || [])}</div>`
         : ''
     }
     ${
@@ -1108,7 +1326,7 @@ function openEditModal(item) {
             ${tagPillsHtml(current)}
             ${current.notes ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin:8px 0 0;">${escapeHtml(current.notes)}</p>` : ''}
             <button type="button" class="btn-secondary" id="editReviewBtn" style="width:100%;margin-top:12px;">Edit Review</button>
-            <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Wishlist'}</button>
+            <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Backlog'}</button>
           </div>
         `
         : `<button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Mark as ${COMPLETED_VERB[current.media_type] || 'Done'}</button>`
@@ -1126,7 +1344,7 @@ function openEditModal(item) {
     current = updated;
     const idx = items.findIndex((i) => i.id === current.id);
     if (idx !== -1) items[idx] = updated;
-    renderWishlist();
+    renderBacklog();
     renderJournal();
     return updated;
   }
@@ -1206,8 +1424,8 @@ function openEditModal(item) {
   }
 
   if (current.status === 'wishlist') {
-    wireTagChips('editWishlistTagChips', () => {
-      persist({ tags: getActiveChipValues('editWishlistTagChips') });
+    wireTagChips('editBacklogTagChips', () => {
+      persist({ tags: getActiveChipValues('editBacklogTagChips') });
     });
   }
 
@@ -1217,7 +1435,7 @@ function openEditModal(item) {
       const updated = await persist({
         status: 'completed',
         date_completed: current.date_completed || new Date().toISOString(),
-        tags: (current.tags || []).filter((t) => !WISHLIST_TAGS.includes(t)),
+        tags: (current.tags || []).filter((t) => !BACKLOG_TAGS.includes(t)),
       });
       document.querySelector('.tab[data-tab="journal"]').click();
       openReviewModal(updated);
@@ -1242,13 +1460,23 @@ function openEditModal(item) {
   }
 
   el('deleteBtn').addEventListener('click', async () => {
-    if (!confirm(`Remove "${current.title}" from your ${current.status === 'wishlist' ? 'wishlist' : 'journal'}?`)) return;
+    if (!confirm(`Remove "${current.title}" from your ${current.status === 'wishlist' ? 'backlog' : 'journal'}?`)) return;
     await store.deleteItem(current.id);
     items = items.filter((i) => i.id !== current.id);
-    renderWishlist();
+    renderBacklog();
     renderJournal();
     closeModal();
   });
+}
+
+function dateInputValue(iso) {
+  return iso ? iso.slice(0, 10) : '';
+}
+
+function dateInputToIso(value) {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toISOString();
 }
 
 function openReviewModal(item) {
@@ -1267,6 +1495,10 @@ function openReviewModal(item) {
     <div class="field">
       <label>Your rating</label>
       ${starsEditableHtml('reviewStars', current.rating)}
+    </div>
+    <div class="field">
+      <label for="reviewDateCompleted">Date ${COMPLETED_VERB[current.media_type] || 'Done'}</label>
+      <input type="date" id="reviewDateCompleted" value="${dateInputValue(current.date_completed)}">
     </div>
     ${reactionTagsFieldHtml('reviewTagChips', current.media_type, current.tags || [])}
     <div class="field">
@@ -1289,12 +1521,16 @@ function openReviewModal(item) {
     current = updated;
     const idx = items.findIndex((i) => i.id === current.id);
     if (idx !== -1) items[idx] = updated;
-    renderWishlist();
+    renderBacklog();
     renderJournal();
   }
 
   wireStars('reviewStars', (rating) => {
     persist({ rating: rating || null });
+  });
+
+  el('reviewDateCompleted').addEventListener('change', (e) => {
+    persist({ date_completed: dateInputToIso(e.target.value) });
   });
 
   wireReactionTagsField('reviewTagChips', () => {
@@ -1343,7 +1579,7 @@ function openAddModal(prefill = {}) {
       <input type="text" id="addYear" value="${escapeHtml(prefill.year || '')}">
     </div>
     <div class="modal-actions stack">
-      <button type="button" class="btn-primary" id="addWishlistBtn">+ Add to Wishlist</button>
+      <button type="button" class="btn-primary" id="addBacklogBtn">+ Add to Backlog</button>
       <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">▶ Currently Reading</button>
       <button type="button" class="btn-secondary" id="addWatchedBtn">✓ Mark as Watched</button>
     </div>
@@ -1376,7 +1612,7 @@ function openAddModal(prefill = {}) {
   updateActionButtons();
   el('addType').addEventListener('change', updateActionButtons);
 
-  el('addWishlistBtn').addEventListener('click', async () => {
+  el('addBacklogBtn').addEventListener('click', async () => {
     const draft = currentDraft();
     if (!draft.title) {
       el('addTitle').focus();
@@ -1384,10 +1620,10 @@ function openAddModal(prefill = {}) {
     }
     const saved = await store.addItem({ ...draft, status: 'wishlist' });
     items.unshift(saved);
-    renderWishlist();
+    renderBacklog();
     renderJournal();
     closeModal();
-    document.querySelector('.tab[data-tab="wishlist"]').click();
+    document.querySelector('.tab[data-tab="backlog"]').click();
   });
 
   el('addCurrentlyBtn').addEventListener('click', async () => {
@@ -1399,7 +1635,7 @@ function openAddModal(prefill = {}) {
     const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
     const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
     items.unshift(saved);
-    renderWishlist();
+    renderBacklog();
     renderJournal();
     closeModal();
     document.querySelector('.tab[data-tab="journal"]').click();
@@ -1420,7 +1656,7 @@ function openAddModal(prefill = {}) {
       date_completed: new Date().toISOString(),
     });
     items.unshift(saved);
-    renderWishlist();
+    renderBacklog();
     renderJournal();
     document.querySelector('.tab[data-tab="journal"]').click();
     openReviewModal(saved);

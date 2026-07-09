@@ -8,7 +8,7 @@ desktop.
 
 ## How it works
 
-- **Wishlist** — things you want to watch/read/listen to eventually.
+- **Backlog** — things you want to watch/read/listen to eventually.
 - **Journal** — a blog-style feed of things you've finished, with your
   star rating and notes, newest first.
 - **Discover** — search movies & TV (TMDb), books (Google Books),
@@ -20,11 +20,11 @@ Clicking any item opens a modal with a **Mark as Watched/Read** button
 modal has no Save button — the star rating and tags save the instant you
 tap them, and notes save automatically when you click away from the
 textarea. An already-reviewed item shows its rating/tags/notes as a
-summary with **Edit Review** and **Move back to Wishlist/Currently**
-actions. Both Wishlist and Journal have their own search/filter bar with
+summary with **Edit Review** and **Move back to Backlog/Currently**
+actions. Both Backlog and Journal have their own search/filter bar with
 tappable chips to narrow by media type.
 
-Items can be tagged: wishlist items get a single **⭐ Shortlist** tag to
+Items can be tagged: backlog items get a single **⭐ Shortlist** tag to
 flag your top picks. In the review modal you can multi-select tags —
 **Favorite** is always offered, and beyond that tags are entirely
 user-defined: type a new one to create it, and it becomes a suggested
@@ -32,7 +32,7 @@ chip for other items of that same media type going forward. Tags are
 searchable in the filter bar, and the Journal has a dedicated Tags
 filter (multi-select dropdown of every tag you've used).
 
-From Discover, adding a result gives three options: **Add to Wishlist**,
+From Discover, adding a result gives three options: **Add to Backlog**,
 **Mark as Watched/Read** (creates the item and opens the review modal),
 or — for books, video games, and TV shows only — **Currently
 Reading/Watching/Playing**, which files it at the top of the Journal
@@ -149,7 +149,7 @@ Under the account menu (👤 in the header) → **Import / Export**, you can:
   [goodreads.com/review/import](https://www.goodreads.com/review/import) →
   "Export Library", then upload the `.csv` file. Shelves map to status
   (`read` → completed, `currently-reading` → in progress, `to-read` →
-  wishlist) and your 1–5 star rating carries over.
+  backlog) and your 1–5 star rating carries over.
 - **Import from Fable**: Fable has no official export. Use a third-party
   browser extension (e.g. "Fable Xport") to generate a Goodreads-style
   `.csv`, then upload it the same way as a Goodreads file.
@@ -193,7 +193,7 @@ natural next step.
 ## Project structure
 
 ```
-index.html          Main app (Wishlist / Journal / Discover)
+index.html          Main app (Backlog / Journal / Discover)
 login.html           Sign in / sign up (Supabase mode only)
 css/style.css        Liquid-glass design system
 js/config.js          Your Supabase + API keys (fill in, safe to commit)

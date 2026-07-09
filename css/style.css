@@ -514,6 +514,18 @@ main {
 
 .tag-filter-wrap { position: relative; }
 
+.filter-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* Below the dropdown (45) so it renders on top; above the mobile nav
+     (40) and its fade (30) so it dims/blurs everything behind the dropdown. */
+  z-index: 44;
+  animation: fadein 0.2s ease;
+}
+
 .tag-filter-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -716,6 +728,19 @@ main {
   background: rgba(255, 59, 48, 0.12);
   color: var(--danger);
 }
+
+.btn-small { padding: 7px 14px; font-size: 12.5px; }
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: rgb(var(--accent));
+  cursor: pointer;
+}
+.link-btn:hover { text-decoration: underline; }
 
 button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
@@ -1145,6 +1170,75 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   flex-wrap: wrap;
 }
 .modal-actions > * { flex: 1; }
+
+/* ---------- Clean up Journal ---------- */
+
+.cleanup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cleanup-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+}
+
+.cleanup-row .cleanup-poster {
+  width: 56px;
+  min-width: 56px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: rgba(var(--accent), 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.cleanup-row-body { flex: 1; min-width: 0; }
+.cleanup-row-title { font-size: 14px; font-weight: 700; margin: 0; }
+.cleanup-row-year { font-weight: 500; color: var(--text-tertiary); }
+.cleanup-row-meta { font-size: 12px; color: var(--text-secondary); margin: 2px 0 8px; }
+
+.cleanup-date-field.field { margin-bottom: 8px; }
+.cleanup-date-field label { margin-bottom: 4px; }
+
+.cleanup-match-loading { font-size: 12.5px; color: var(--text-tertiary); margin: 0; }
+.cleanup-no-match { font-size: 12.5px; color: var(--text-secondary); margin: 0; }
+
+.cleanup-match-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(120, 120, 128, 0.08);
+}
+
+.cleanup-match-poster {
+  width: 38px;
+  min-width: 38px;
+  aspect-ratio: 2 / 3;
+  border-radius: 4px;
+  object-fit: cover;
+  background: rgba(var(--accent), 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.cleanup-match-info { flex: 1; min-width: 0; }
+.cleanup-match-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.cleanup-match-actions { display: flex; gap: 8px; }
 
 /* ---------- Auth page ---------- */
 

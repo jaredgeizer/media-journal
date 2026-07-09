@@ -129,7 +129,7 @@ export async function parseLetterboxdZip(arrayBuffer) {
   const completed = Array.from(byUri.values());
   const completedUris = new Set(completed.map((i) => i.external_id));
 
-  const wishlistItems = watchlist
+  const backlogItems = watchlist
     .filter((row) => row['Letterboxd URI'] && !completedUris.has(row['Letterboxd URI']))
     .map((row) => ({
       media_type: 'movie',
@@ -147,7 +147,7 @@ export async function parseLetterboxdZip(arrayBuffer) {
       date_added: toIsoDate(row['Date']) || new Date().toISOString(),
     }));
 
-  return [...completed, ...wishlistItems];
+  return [...completed, ...backlogItems];
 }
 
 // Same match shape as findLibraryMatch() in app.js, applied against a

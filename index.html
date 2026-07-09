@@ -24,6 +24,7 @@
       <button type="button" class="account-icon-btn" id="accountBtn" aria-label="Account">👤</button>
       <div class="account-dropdown hidden" id="accountDropdown">
         <button type="button" class="account-dropdown-item" id="importExportBtn">Import / Export</button>
+        <button type="button" class="account-dropdown-item" id="cleanupJournalBtn">Clean up Journal</button>
         <button type="button" class="account-dropdown-item" id="signOutBtn">Sign out</button>
       </div>
     </div>
@@ -37,7 +38,7 @@
 <nav class="tabbar" role="tablist">
   <div class="tabbar-pills glass">
     <button class="tab active" data-tab="journal">Journal</button>
-    <button class="tab" data-tab="wishlist">Wishlist</button>
+    <button class="tab" data-tab="backlog">Backlog</button>
   </div>
   <button class="tab discover-fab" id="discoverFabBtn" data-tab="discover" aria-label="Discover — find something new">
     <span class="discover-fab-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
@@ -63,23 +64,23 @@
       <div id="currentlyFeed" class="currently-scroll"></div>
     </div>
     <div id="journalFeed" class="journal-feed"></div>
-    <p id="journalEmpty" class="empty-state hidden">Nothing logged yet. Rate something from your wishlist to start your journal.</p>
+    <p id="journalEmpty" class="empty-state hidden">Nothing logged yet. Rate something from your backlog to start your journal.</p>
   </section>
 
-  <!-- WISHLIST -->
-  <section id="tab-wishlist" class="tab-panel">
-    <div class="chip-row" id="wishlistTypeChips">
+  <!-- BACKLOG -->
+  <section id="tab-backlog" class="tab-panel">
+    <div class="chip-row" id="backlogTypeChips">
       <div class="tag-filter-wrap">
-        <button type="button" class="filter-toggle" id="wishlistFilterBtn" aria-label="Filters">
+        <button type="button" class="filter-toggle" id="backlogFilterBtn" aria-label="Filters">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="3" rx="1.5"></rect><rect x="6" y="10.5" width="12" height="3" rx="1.5"></rect><rect x="9" y="16" width="6" height="3" rx="1.5"></rect></svg>
         </button>
-        <div class="tag-filter-dropdown hidden" id="wishlistFilterDropdown"></div>
+        <div class="tag-filter-dropdown hidden" id="backlogFilterDropdown"></div>
       </div>
       <span class="chip-divider">|</span>
-      <div class="chip-scroll" id="wishlistQuickTags"></div>
+      <div class="chip-scroll" id="backlogQuickTags"></div>
     </div>
-    <div id="wishlistGrid" class="card-grid"></div>
-    <p id="wishlistEmpty" class="empty-state hidden">Nothing on your wishlist yet — tap + to find something.</p>
+    <div id="backlogGrid" class="card-grid"></div>
+    <p id="backlogEmpty" class="empty-state hidden">Nothing in your backlog yet — tap + to find something.</p>
   </section>
 
   <!-- DISCOVER -->
@@ -105,6 +106,8 @@
     <p id="discoverEmpty" class="empty-state hidden">Search above to find something new, or add it by hand.</p>
   </section>
 </main>
+
+<div class="filter-scrim hidden" id="filterScrim"></div>
 
 <div id="modalRoot"></div>
 
