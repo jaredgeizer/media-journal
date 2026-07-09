@@ -4,10 +4,10 @@ import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibr
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
-const EXTERNAL_LINK_LABEL = { itunes: '🎧 Open in Apple Podcasts', google_books: '📖 View on Google Books' };
+const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', google_books: 'View on Google Books' };
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
-const START_LABEL = { book: '📖 Start Reading', tv: '📺 Start Watching', game: '🎮 Start Playing' };
-const CURRENTLY_LABEL = { book: '📖 Currently Reading', tv: '📺 Currently Watching', game: '🎮 Currently Playing' };
+const START_LABEL = { book: 'Start Reading', tv: 'Start Watching', game: 'Start Playing' };
+const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', game: 'Currently Playing' };
 
 const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
@@ -31,6 +31,14 @@ const el = (id) => document.getElementById(id);
 function escapeHtml(str) {
   if (str == null) return '';
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Built-in tags (Favorite/Shortlist/Recommended) bake an emoji into their
+// stored value so old data and filter matching keep working untouched —
+// this strips a leading emoji for display only, wherever a tag renders as
+// text (pills, chips, filter checkboxes). Plain user-added tags pass through.
+function stripTagEmoji(tag) {
+  return tag.replace(/^\p{Extended_Pictographic}️?\s*/u, '');
 }
 
 // ---------- Recent searches ----------
@@ -245,7 +253,7 @@ function posterOrEmoji(item, sizeClass = 'card-poster') {
   if (item.poster_url) {
     return `<img class="${sizeClass}" src="${escapeHtml(item.poster_url)}" alt="" loading="lazy">`;
   }
-  return `<div class="${sizeClass}">${TYPE_EMOJI[item.media_type] || '✨'}</div>`;
+  return `<div class="${sizeClass}"></div>`;
 }
 
 function metaLine(item) {
@@ -286,12 +294,12 @@ function tagPillsHtml(item, { limit } = {}) {
   if (!item.tags || !item.tags.length) return '';
   const tags = limit ? item.tags.slice(0, limit) : item.tags;
   const extra = limit ? item.tags.length - tags.length : 0;
-  return `<div class="item-tags">${tags.map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}${extra > 0 ? `<span class="tag-pill tag-pill--more">+${extra}</span>` : ''}</div>`;
+  return `<div class="item-tags">${tags.map((t) => `<span class="tag-pill">${escapeHtml(stripTagEmoji(t))}</span>`).join('')}${extra > 0 ? `<span class="tag-pill tag-pill--more">+${extra}</span>` : ''}</div>`;
 }
 
 function tagChipsHtml(id, options, selected) {
   return `<div class="chip-row" id="${id}">${options
-    .map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`)
+    .map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`)
     .join('')}</div>`;
 }
 
@@ -327,7 +335,7 @@ function reactionTagsFieldHtml(id, mediaType, selected, extraClass = '') {
     <div class="field${extraClass ? ' ' + extraClass : ''}" id="${id}Field">
       <label>Tags</label>
       <div class="chip-row" id="${id}">
-        ${pool.map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}
+        ${pool.map((t) => `<button type="button" class="chip${selected.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`).join('')}
       </div>
       <div class="tag-add-row">
         <input type="text" id="${id}NewInput" class="tag-add-input" placeholder="Add a tag…" maxlength="24">
@@ -442,6 +450,8 @@ function progressFieldHtml(item) {
           <span class="progress-subtext">Season</span>
           <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressSeason" min="1" value="${season}">
           <span class="progress-subtext" id="editSeasonTotal"></span>
+        </div>
+        <div class="progress-row progress-row-episode">
           <span class="progress-subtext">Episode</span>
           <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressEpisode" min="1" value="${episode}">
           <span class="progress-subtext" id="editEpisodeTotal"></span>
@@ -454,7 +464,7 @@ function progressFieldHtml(item) {
 function cardHtml(item) {
   return `
     <div class="card glass" data-item-id="${item.id}">
-      <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+      <div class="card-type-badge">${TYPE_LABEL[item.media_type]}</div>
       ${posterOrEmoji(item)}
       <div class="card-body">
         <p class="card-title">${escapeHtml(item.title)}</p>
@@ -478,7 +488,7 @@ function journalEntryHtml(item) {
           <p class="journal-entry-title">${escapeHtml(item.title)}</p>
           <span class="journal-entry-date">${dateStr}</span>
         </div>
-        <p class="journal-entry-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+        <p class="journal-entry-meta">${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
         <div class="journal-entry-rating-row">
           <div class="card-stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</div>
           ${tagPillsHtml(item, { limit: 2 })}
@@ -516,7 +526,7 @@ function discoverCardHtml(item, idx) {
   const match = findLibraryMatch(item);
   return `
     <div class="card glass${match && match.status === 'completed' ? ' card--seen' : ''}" data-idx="${idx}">
-      <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+      <div class="card-type-badge">${TYPE_LABEL[item.media_type]}</div>
       ${libraryStatusBadgeHtml(match)}
       ${posterOrEmoji(item)}
       <div class="card-body">
@@ -569,7 +579,7 @@ function currentlyEntryHtml(item) {
     const pct = item.progress_percent || 0;
     return `
       <div class="currently-card glass" data-item-id="${item.id}">
-        <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+        <div class="card-type-badge">${TYPE_LABEL[item.media_type]}</div>
         ${posterOrEmoji(item, 'currently-card-poster')}
         <div class="card-body">
           <p class="card-title">${escapeHtml(item.title)}</p>
@@ -584,7 +594,7 @@ function currentlyEntryHtml(item) {
   const progressText = `S${item.progress_season || 1} · E${item.progress_episode || 1}`;
   return `
     <div class="currently-card glass" data-item-id="${item.id}">
-      <div class="card-type-badge">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}</div>
+      <div class="card-type-badge">${TYPE_LABEL[item.media_type]}</div>
       ${posterOrEmoji(item, 'currently-card-poster')}
       <div class="card-body">
         <p class="card-title">${escapeHtml(item.title)}</p>
@@ -730,7 +740,7 @@ function renderQuickTags(kind) {
   const selected = kind === 'journal' ? journalSelectedTags : backlogSelectedTags;
   const container = el(`${kind}QuickTags`);
   container.innerHTML = QUICK_TAGS[kind]
-    .map((t) => `<button type="button" class="chip${selected.has(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`)
+    .map((t) => `<button type="button" class="chip${selected.has(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`)
     .join('');
   container.querySelectorAll('.chip').forEach((chip) => {
     chip.addEventListener('click', () => toggleQuickTag(kind, chip.dataset.value));
@@ -779,7 +789,7 @@ function renderBacklogFilterDropdown() {
     <div class="tag-filter-section-heading">Categories</div>
     ${typeChipsHtml('backlogFilterTypeChips', backlogSelectedTypes)}
     <div class="tag-filter-section-heading">Tags</div>
-    ${BACKLOG_TAGS.map((t) => `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${backlogSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`).join('')}
+    ${BACKLOG_TAGS.map((t) => `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${backlogSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(stripTagEmoji(t))}</label>`).join('')}
     <div class="tag-filter-section-heading">Sort by</div>
     ${sortOptionsHtml('backlogSort', BACKLOG_SORTS, backlogSortKey)}
     <button type="button" class="tag-filter-reset" id="backlogFilterReset">Reset filters</button>
@@ -829,7 +839,7 @@ function renderJournalFilterDropdown() {
     ? allTags
         .map(
           (t) =>
-            `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${journalSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(t)}</label>`
+            `<label class="tag-filter-option"><input type="checkbox" data-filter-tag value="${escapeHtml(t)}" ${journalSelectedTags.has(t) ? 'checked' : ''}> ${escapeHtml(stripTagEmoji(t))}</label>`
         )
         .join('')
     : `<p class="tag-filter-empty">No tags yet.</p>`;
@@ -1106,7 +1116,7 @@ function cleanupRowHtml(item) {
       ${posterOrEmoji(item, 'cleanup-poster')}
       <div class="cleanup-row-body">
         <p class="cleanup-row-title">${escapeHtml(item.title)}${item.year ? ` <span class="cleanup-row-year">(${escapeHtml(item.year)})</span>` : ''}</p>
-        <p class="cleanup-row-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+        <p class="cleanup-row-meta">${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
         ${
           needsDate
             ? `<div class="field cleanup-date-field">
@@ -1139,7 +1149,7 @@ function openCleanupModal() {
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}">${candidates.map(cleanupRowHtml).join('')}</div>
-    <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has a poster and a watched date. 🎉</p>
+    <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has a poster and a watched date.</p>
   `;
   openModalWithContent(html);
   el('modalCloseBtn').addEventListener('click', closeModal);
@@ -1178,7 +1188,7 @@ function openImportExportModal() {
     </div>
     <div class="field">
       <label>Export</label>
-      <button type="button" class="btn-secondary" id="exportJsonBtn" style="width:100%;">⬇️ Export my data (JSON)</button>
+      <button type="button" class="btn-secondary" id="exportJsonBtn" style="width:100%;">Export my data (JSON)</button>
     </div>
     <div class="field">
       <label>Import from Goodreads</label>
@@ -1300,7 +1310,7 @@ function openEditModal(item) {
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
         <p class="modal-title">${escapeHtml(current.title)}</p>
-        <p class="modal-subtitle">${TYPE_EMOJI[current.media_type]} ${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
+        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
@@ -1487,7 +1497,7 @@ function openReviewModal(item) {
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
         <p class="modal-title">${escapeHtml(current.title)}</p>
-        <p class="modal-subtitle">${TYPE_EMOJI[current.media_type]} ${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
+        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
@@ -1548,7 +1558,7 @@ function openAddModal(prefill = {}) {
   const isManual = !prefill.title;
   const posterBlock = prefill.poster_url
     ? `<img class="modal-poster" src="${escapeHtml(prefill.poster_url)}" alt="">`
-    : `<div class="modal-poster" style="display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(120,120,128,0.12)">${TYPE_EMOJI[prefill.media_type] || '✨'}</div>`;
+    : `<div class="modal-poster" style="background:rgba(120,120,128,0.12)"></div>`;
 
   const html = `
     <div class="modal-header">
@@ -1567,7 +1577,7 @@ function openAddModal(prefill = {}) {
     <div class="field">
       <label for="addType">Type</label>
       <select id="addType">
-        ${Object.keys(TYPE_LABEL).map((t) => `<option value="${t}" ${t === prefill.media_type ? 'selected' : ''}>${TYPE_EMOJI[t]} ${TYPE_LABEL[t]}</option>`).join('')}
+        ${Object.keys(TYPE_LABEL).map((t) => `<option value="${t}" ${t === prefill.media_type ? 'selected' : ''}>${TYPE_LABEL[t]}</option>`).join('')}
       </select>
     </div>
     <div class="field">
@@ -1579,9 +1589,9 @@ function openAddModal(prefill = {}) {
       <input type="text" id="addYear" value="${escapeHtml(prefill.year || '')}">
     </div>
     <div class="modal-actions stack">
-      <button type="button" class="btn-primary" id="addBacklogBtn">+ Add to Backlog</button>
-      <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">▶ Currently Reading</button>
-      <button type="button" class="btn-secondary" id="addWatchedBtn">✓ Mark as Watched</button>
+      <button type="button" class="btn-secondary" id="addBacklogBtn">+ Add to Backlog</button>
+      <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">Currently Reading</button>
+      <button type="button" class="btn-primary" id="addWatchedBtn">✓ Mark as Watched</button>
     </div>
   `;
   openModalWithContent(html);

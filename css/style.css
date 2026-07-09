@@ -611,6 +611,8 @@ main {
   flex-wrap: wrap;
 }
 
+.progress-row-episode { margin-top: 10px; }
+
 .progress-row input[type="number"] { width: 70px; flex: none; }
 .progress-row input[type="range"] { flex: 1; min-width: 120px; }
 .progress-row select { width: auto; flex: none; }
