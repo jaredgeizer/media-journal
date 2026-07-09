@@ -84,6 +84,7 @@ function wireRecentSearchDropdown(input, dropdown, onSelect) {
     const item = e.target.closest('.recent-search-item');
     if (item) {
       dropdown.classList.add('hidden');
+      input.blur();
       onSelect(item.dataset.query);
       return;
     }
@@ -276,9 +277,11 @@ function wireDescriptionToggle(id) {
   });
 }
 
-function tagPillsHtml(item) {
+function tagPillsHtml(item, { limit } = {}) {
   if (!item.tags || !item.tags.length) return '';
-  return `<div class="item-tags">${item.tags.map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`;
+  const tags = limit ? item.tags.slice(0, limit) : item.tags;
+  const extra = limit ? item.tags.length - tags.length : 0;
+  return `<div class="item-tags">${tags.map((t) => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}${extra > 0 ? `<span class="tag-pill tag-pill--more">+${extra}</span>` : ''}</div>`;
 }
 
 function tagChipsHtml(id, options, selected) {
@@ -471,8 +474,10 @@ function journalEntryHtml(item) {
           <span class="journal-entry-date">${dateStr}</span>
         </div>
         <p class="journal-entry-meta">${TYPE_EMOJI[item.media_type]} ${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
-        <div class="card-stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</div>
-        ${tagPillsHtml(item)}
+        <div class="journal-entry-rating-row">
+          <div class="card-stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</div>
+          ${tagPillsHtml(item, { limit: 2 })}
+        </div>
         ${item.notes ? `<p class="journal-entry-notes">${escapeHtml(item.notes)}</p>` : ''}
       </div>
     </div>`;
@@ -492,6 +497,14 @@ function libraryStatusBadgeHtml(match) {
     return `<div class="card-status-badge card-status-badge--done">✓ ${COMPLETED_VERB[match.media_type] || 'Done'}</div>`;
   }
   return `<div class="card-status-badge card-status-badge--saved">✓ Saved</div>`;
+}
+
+function manualAddCardHtml() {
+  return `
+    <div class="card glass card--manual-add" data-manual-add="true">
+      <div class="card-manual-add-icon">＋</div>
+      <p class="card-title">Add manually</p>
+    </div>`;
 }
 
 function discoverCardHtml(item, idx) {
@@ -1450,6 +1463,7 @@ async function runDiscoverSearch() {
   if (!query) return;
   addRecentSearch(query);
   el('tab-discover').classList.remove('discover-empty');
+  el('tab-discover').appendChild(el('manualAddBtn').closest('.manual-add-wrap'));
   const type = el('discoverTypeChips').dataset.value;
   el('discoverNotice').classList.add('hidden');
   el('discoverEmpty').classList.add('hidden');
@@ -1472,12 +1486,15 @@ async function runDiscoverSearch() {
     el('discoverNotice').classList.remove('hidden');
   }
 
+  const hasExactMatch = results.some((r) => (r.title || '').trim().toLowerCase() === query.toLowerCase());
   const grid = el('discoverResults');
-  grid.innerHTML = results.map((r, idx) => discoverCardHtml(r, idx)).join('');
+  grid.innerHTML = (hasExactMatch ? '' : manualAddCardHtml()) + results.map((r, idx) => discoverCardHtml(r, idx)).join('');
   el('discoverEmpty').classList.toggle('hidden', results.length > 0);
   grid.querySelectorAll('[data-idx]').forEach((node) => {
     node.addEventListener('click', () => openAddModal(results[parseInt(node.dataset.idx, 10)]));
   });
+  const manualAddCard = grid.querySelector('[data-manual-add]');
+  if (manualAddCard) manualAddCard.addEventListener('click', () => openAddModal({}));
 }
 
 el('discoverQuery').addEventListener('keydown', (e) => {

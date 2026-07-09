@@ -84,6 +84,9 @@
 
   <!-- DISCOVER -->
   <section id="tab-discover" class="tab-panel discover-empty">
+    <div class="manual-add-wrap">
+      <button id="manualAddBtn" class="btn-secondary">+ Add manually (play, restaurant, other…)</button>
+    </div>
     <div class="search-row">
       <input type="search" id="discoverQuery" class="glass-input" placeholder="Search movies, TV, books, podcasts, games…" spellcheck="true" autocomplete="off" enterkeyhint="search">
       <div class="recent-search-dropdown hidden" id="discoverRecentDropdown"></div>
@@ -100,9 +103,6 @@
     <div id="discoverNotice" class="notice warn hidden"></div>
     <div id="discoverResults" class="card-grid"></div>
     <p id="discoverEmpty" class="empty-state hidden">Search above to find something new, or add it by hand.</p>
-    <div class="manual-add-wrap">
-      <button id="manualAddBtn" class="btn-secondary">+ Add manually (play, restaurant, other…)</button>
-    </div>
   </section>
 </main>
 
