@@ -114,6 +114,9 @@ function wireRecentSearchDropdown(input, dropdown, onSelect) {
 // ---------- Boot ----------
 
 async function boot() {
+  el('journalFeed').innerHTML = Array.from({ length: 4 }, journalSkeletonEntryHtml).join('');
+  el('backlogGrid').innerHTML = Array.from({ length: 8 }, skeletonCardHtml).join('');
+
   await store.init();
 
   el('accountMenu').classList.remove('hidden');
@@ -201,6 +204,23 @@ function switchTab(tabName) {
     discoverMergeTargetId = null;
     updateDiscoverMergeNotice();
   }
+  positionTabIndicator();
+}
+
+// Slides the blue background pill behind whichever of Journal/Backlog is
+// active. Re-run whenever the active tab changes or the pills' layout
+// might have shifted (responsive relocation, window resize).
+function positionTabIndicator() {
+  const pills = document.querySelector('.tabbar-pills');
+  const indicator = el('tabIndicator');
+  if (!pills || !indicator) return;
+  const activeTab = pills.querySelector('.tab.active');
+  if (!activeTab) {
+    indicator.style.width = '0';
+    return;
+  }
+  indicator.style.width = `${activeTab.offsetWidth}px`;
+  indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
 }
 
 document.querySelectorAll('.tab').forEach((btn) => {
@@ -255,10 +275,19 @@ function applyResponsiveNav(isDesktop) {
     nav.insertBefore(pills, nav.firstChild);
     nav.classList.remove('hidden');
   }
+  // Relocating the pills node changes its layout context, so the indicator's
+  // measured offsets need to be recalculated afterward.
+  positionTabIndicator();
 }
 
 applyResponsiveNav(desktopNavQuery.matches);
 desktopNavQuery.addEventListener('change', (e) => applyResponsiveNav(e.matches));
+
+let indicatorResizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(indicatorResizeTimer);
+  indicatorResizeTimer = setTimeout(positionTabIndicator, 100);
+});
 
 // ---------- Rendering helpers ----------
 
@@ -1782,6 +1811,18 @@ function skeletonCardHtml() {
       <div class="skeleton-poster"></div>
       <div class="skeleton-line"></div>
       <div class="skeleton-line short"></div>
+    </div>`;
+}
+
+function journalSkeletonEntryHtml() {
+  return `
+    <div class="skeleton-entry glass">
+      <div class="skeleton-poster"></div>
+      <div class="skeleton-entry-body">
+        <div class="skeleton-line title"></div>
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-line"></div>
+      </div>
     </div>`;
 }
 
