@@ -145,7 +145,9 @@ button, input, select, textarea {
   justify-content: center;
   cursor: pointer;
   color: var(--text-primary);
+  transition: background-color 0.2s ease;
 }
+.account-icon-btn:hover { background: rgba(120, 120, 128, 0.24); }
 
 .account-dropdown {
   position: absolute;
@@ -285,6 +287,7 @@ main {
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
 }
 
+.discover-fab:hover { border-color: rgba(var(--accent), 0.4); }
 .discover-fab:active { transform: scale(0.92); }
 
 .discover-fab-inner {
@@ -292,7 +295,10 @@ main {
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
+  transition: color 0.25s ease;
 }
+
+.discover-fab:hover .discover-fab-inner { color: var(--text-primary); }
 
 .discover-fab-inner svg { width: 20px; height: 20px; }
 
@@ -699,7 +705,7 @@ main {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, background-color 0.2s ease, filter 0.2s ease;
   white-space: nowrap;
 }
 
@@ -712,6 +718,7 @@ main {
   color: #fff;
   box-shadow: 0 6px 18px rgba(var(--accent), 0.35);
 }
+.btn-primary:hover { filter: brightness(1.08); }
 
 .btn-secondary {
   background: var(--glass-bg);
@@ -719,6 +726,7 @@ main {
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
 }
+.btn-secondary:hover { background: var(--glass-bg-strong); }
 
 .btn-ghost {
   background: transparent;
@@ -730,6 +738,7 @@ main {
   background: rgba(255, 59, 48, 0.12);
   color: var(--danger);
 }
+.btn-danger:hover { background: rgba(255, 59, 48, 0.2); }
 
 .btn-small { padding: 7px 14px; font-size: 12.5px; }
 
@@ -1129,7 +1138,9 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   cursor: pointer;
   color: var(--text-secondary);
   flex-shrink: 0;
+  transition: background-color 0.2s ease, color 0.25s ease;
 }
+.modal-close:hover { background: rgba(120, 120, 128, 0.26); color: var(--text-primary); }
 
 .field { margin-bottom: 16px; }
 .field label {

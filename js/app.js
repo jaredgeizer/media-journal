@@ -1062,6 +1062,16 @@ function maybeRemoveResolvedRow(item) {
   }
 }
 
+// Keeps the bulk "use all suggested posters" button's count/disabled state
+// in sync with however many rows currently have a match ready to apply.
+function updateCleanupApplyAllBtn() {
+  const btn = el('cleanupApplyAllBtn');
+  if (!btn) return;
+  const count = document.querySelectorAll('.cleanup-row [data-apply-match]').length;
+  btn.textContent = count ? `Use all suggested posters (${count})` : 'Use all suggested posters';
+  btn.disabled = count === 0;
+}
+
 function wireCleanupMatchActions(slot, item, match) {
   slot.querySelector('[data-apply-match]').addEventListener('click', async (e) => {
     e.target.disabled = true;
@@ -1076,10 +1086,12 @@ function wireCleanupMatchActions(slot, item, match) {
       wireCleanupNoMatch(slot, item);
     }
     maybeRemoveResolvedRow(item);
+    updateCleanupApplyAllBtn();
   });
   slot.querySelector('[data-skip-match]').addEventListener('click', () => {
     slot.innerHTML = cleanupNoMatchHtml();
     wireCleanupNoMatch(slot, item);
+    updateCleanupApplyAllBtn();
   });
 }
 
@@ -1106,6 +1118,7 @@ async function loadCleanupMatch(item) {
     slot.innerHTML = cleanupNoMatchHtml();
     wireCleanupNoMatch(slot, item);
   }
+  updateCleanupApplyAllBtn();
 }
 
 function cleanupRowHtml(item) {
@@ -1148,11 +1161,19 @@ function openCleanupModal() {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
+    ${candidates.length ? `<button type="button" class="btn-secondary" id="cleanupApplyAllBtn" style="width:100%;margin-bottom:14px;" disabled>Use all suggested posters</button>` : ''}
     <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}">${candidates.map(cleanupRowHtml).join('')}</div>
     <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has a poster and a watched date.</p>
   `;
   openModalWithContent(html);
   el('modalCloseBtn').addEventListener('click', closeModal);
+
+  const applyAllBtn = el('cleanupApplyAllBtn');
+  if (applyAllBtn) {
+    applyAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('.cleanup-row [data-apply-match]').forEach((btn) => btn.click());
+    });
+  }
 
   el('cleanupList').querySelectorAll('[data-cleanup-date]').forEach((input) => {
     input.addEventListener('change', async (e) => {
