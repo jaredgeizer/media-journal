@@ -366,6 +366,16 @@ main {
 
 #discoverHeroHint { display: none; }
 
+/* On mobile, the vertically-centered hero search sits low enough that the
+   on-screen keyboard covers the recent-searches dropdown as soon as the
+   field is focused — pin everything near the top instead. */
+@media (max-width: 680px) {
+  #tab-discover.discover-empty.active {
+    justify-content: flex-start;
+    min-height: 0;
+  }
+}
+
 /* At the same width where the persistent header search field appears, the
    in-content search box is redundant — hide it and point to the header
    field instead while Discover is in its empty landing state. */
