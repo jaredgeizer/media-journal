@@ -560,9 +560,17 @@ function typeMatches(item, selectedTypes) {
   return selectedTypes.size === 0 || selectedTypes.has(item.media_type);
 }
 
+// Items with no watched date sort as if they were watched on this sentinel
+// date — old enough to fall to the bottom of "newest first" without needing
+// a separate undated bucket in the comparator itself.
+const NO_DATE_SENTINEL = new Date('1999-01-01T00:00:00.000Z').getTime();
+function effectiveCompletedDate(item) {
+  return item.date_completed ? new Date(item.date_completed).getTime() : NO_DATE_SENTINEL;
+}
+
 const JOURNAL_SORTS = {
-  completed_desc: { label: 'Date completed, newest first', cmp: (a, b) => new Date(b.date_completed || b.updated_at || 0) - new Date(a.date_completed || a.updated_at || 0) },
-  completed_asc: { label: 'Date completed, oldest first', cmp: (a, b) => new Date(a.date_completed || a.updated_at || 0) - new Date(b.date_completed || b.updated_at || 0) },
+  completed_desc: { label: 'Date completed, newest first', cmp: (a, b) => effectiveCompletedDate(b) - effectiveCompletedDate(a) },
+  completed_asc: { label: 'Date completed, oldest first', cmp: (a, b) => effectiveCompletedDate(a) - effectiveCompletedDate(b) },
   release_desc: { label: 'Release date, newest first', cmp: (a, b) => (itemYear(b) || 0) - (itemYear(a) || 0) },
   rating_desc: { label: 'Ranking, highest first', cmp: (a, b) => (b.rating || 0) - (a.rating || 0) },
 };
@@ -699,6 +707,39 @@ function renderCurrently() {
   });
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// null key = the "No Date" group — kept separate from the 1999 sentinel used
+// for sorting so nothing gets a fabricated real-looking date on screen.
+function journalDateGroupKey(item) {
+  if (!item.date_completed) return null;
+  const d = new Date(item.date_completed);
+  return { year: d.getFullYear(), month: d.getMonth() };
+}
+
+function journalGroupedFeedHtml(list) {
+  let html = '';
+  let lastGroupId = undefined;
+  let lastYearLabel = undefined;
+  list.forEach((item) => {
+    const key = journalDateGroupKey(item);
+    const groupId = key ? `${key.year}-${key.month}` : 'nodate';
+    if (groupId !== lastGroupId) {
+      const yearLabel = key ? String(key.year) : 'No Date';
+      if (yearLabel !== lastYearLabel) {
+        html += `<h2 class="section-heading journal-year-heading">${escapeHtml(yearLabel)}</h2>`;
+        lastYearLabel = yearLabel;
+      }
+      if (key) {
+        html += `<div class="journal-month-heading"><span>${MONTH_NAMES[key.month]}</span></div>`;
+      }
+      lastGroupId = groupId;
+    }
+    html += journalEntryHtml(item);
+  });
+  return html;
+}
+
 function renderJournal() {
   const list = items
     .filter((i) => i.status === 'completed' && typeMatches(i, journalSelectedTypes))
@@ -706,7 +747,8 @@ function renderJournal() {
     .filter((i) => journalSelectedRatings.size === 0 || journalSelectedRatings.has(i.rating))
     .sort(JOURNAL_SORTS[journalSortKey].cmp);
   const feed = el('journalFeed');
-  feed.innerHTML = list.map(journalEntryHtml).join('');
+  const grouped = journalSortKey === 'completed_desc' || journalSortKey === 'completed_asc';
+  feed.innerHTML = grouped ? journalGroupedFeedHtml(list) : list.map(journalEntryHtml).join('');
   el('journalEmpty').classList.toggle('hidden', list.length > 0);
   feed.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
@@ -1853,7 +1895,15 @@ async function runDiscoverSearch() {
   grid.querySelectorAll('[data-idx]').forEach((node) => {
     node.addEventListener('click', () => {
       const result = results[parseInt(node.dataset.idx, 10)];
-      if (discoverMergeTargetId) mergeDiscoverResultIntoItem(discoverMergeTargetId, result);
+      if (discoverMergeTargetId) {
+        mergeDiscoverResultIntoItem(discoverMergeTargetId, result);
+        return;
+      }
+      // Already tracking this one — open its real modal (review summary,
+      // backlog fields, or currently-watching progress, whichever applies)
+      // instead of starting a new item.
+      const match = findLibraryMatch(result);
+      if (match) openEditModal(match);
       else openAddModal(result);
     });
   });
