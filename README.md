@@ -161,12 +161,34 @@ Under the account menu (👤 in the header) → **Import / Export**, you can:
 
 Every import shows a preview (how many items will be added vs. skipped as
 already-in-your-library duplicates) before anything is written. Imported
-items don't get poster images or descriptions automatically — edit an item
-afterward to add those by hand, or re-add it from Discover to pick up
-artwork from a search result.
+items don't get poster images or descriptions automatically — use the
+account menu's **Clean up Journal** / **Clean up Backlog** to auto-match and
+backfill posters in bulk, or open an individual item and tap **Update Info**
+to search and pick the right match yourself.
 
 Serializd isn't supported yet — it doesn't currently offer a reliable free
 export.
+
+## Quick Add (Apple Shortcuts)
+
+`quick-add.html` is a tiny standalone page for fast capture: an
+already-focused title field plus **Shortlist**/**Recommended** tag chips
+(Recommended is selected by default). Type a title and hit Return — no
+search, just an instant add to your Backlog with placeholder details you
+fill in later. It's also linked from the account menu (👤 → **Quick Add**)
+for use inside the app itself.
+
+To trigger it from an iPhone/iPad:
+
+1. Open the **Shortcuts** app → **+** → add an **Open URLs** action, and set
+   the URL to `https://<your-domain>/quick-add.html`.
+2. Name the shortcut something like "Add to Backlog" and add it to your Home
+   Screen, the Action Button, or Siri — however you'd like to trigger it.
+
+Once an item is added, open it from the Backlog and tap **Update Info**
+(shown whenever a backlog item has no poster yet) to jump into Discover with
+the title pre-searched across every media type — tap the right result and it
+fills in the card's poster, description, year, and type in place.
 
 ## Deploying to GitHub Pages
 
@@ -195,6 +217,7 @@ natural next step.
 ```
 index.html          Main app (Backlog / Journal / Discover)
 login.html           Sign in / sign up (Supabase mode only)
+quick-add.html        Standalone fast-capture page (Apple Shortcuts, etc.)
 css/style.css        Liquid-glass design system
 js/config.js          Your Supabase + API keys (fill in, safe to commit)
 js/storage.js         Data layer: Supabase, or localStorage Demo Mode

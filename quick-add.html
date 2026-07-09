@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f1f1">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<title>Quick Add — Media Journal</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-card glass-strong">
+    <h1>Quick Add</h1>
+    <p class="sub">Add something to your backlog — search and fill in the details later.</p>
+
+    <form id="quickAddForm">
+      <div class="field" style="text-align:left;">
+        <input type="text" id="quickAddTitle" class="glass-input" placeholder="What do you want to add?" autocomplete="off" autofocus required>
+      </div>
+      <div class="chip-row" id="quickAddTagChips" style="justify-content:center;margin-bottom:20px;"></div>
+      <button type="submit" class="btn-primary" id="quickAddSubmit" style="width:100%">Add to Backlog</button>
+      <p class="sub" id="quickAddStatus" style="min-height:18px;margin:12px 0 0;"></p>
+    </form>
+
+    <div class="switch"><a href="index.html" style="color:rgb(var(--accent));font-weight:600;text-decoration:none;">&larr; Back to Media Journal</a></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script type="module">
+  import { createStore } from './js/storage.js';
+
+  const store = createStore();
+
+  // Kept in sync with the same constants/helpers in js/app.js — duplicated
+  // here since this page is intentionally standalone (fast to open from an
+  // iOS Shortcut) and doesn't load the full app.js, which assumes the main
+  // index.html DOM exists.
+  const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended'];
+  const DEFAULT_TAGS = ['👍 Recommended'];
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function stripTagEmoji(tag) {
+    return tag.replace(/^\p{Extended_Pictographic}️?\s*/u, '');
+  }
+
+  const titleInput = document.getElementById('quickAddTitle');
+  const chipRow = document.getElementById('quickAddTagChips');
+  const statusEl = document.getElementById('quickAddStatus');
+  const submitBtn = document.getElementById('quickAddSubmit');
+
+  chipRow.innerHTML = BACKLOG_TAGS.map(
+    (t) => `<button type="button" class="chip${DEFAULT_TAGS.includes(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`
+  ).join('');
+  chipRow.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+
+  async function boot() {
+    await store.init();
+    store.onAuthChange((user) => {
+      if (!user && store.mode === 'supabase') {
+        location.replace('login.html?redirect=quick-add.html');
+        return;
+      }
+      titleInput.focus();
+    });
+  }
+  boot();
+
+  document.getElementById('quickAddForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = titleInput.value.trim();
+    if (!title) return;
+    submitBtn.disabled = true;
+    statusEl.textContent = '';
+    const tags = Array.from(chipRow.querySelectorAll('.chip.active')).map((c) => c.dataset.value);
+    try {
+      await store.addItem({
+        media_type: 'other',
+        title,
+        creator: null,
+        year: null,
+        poster_url: null,
+        description: null,
+        external_source: 'manual',
+        external_id: null,
+        external_url: null,
+        status: 'wishlist',
+        tags,
+      });
+      statusEl.textContent = `Added "${title}" ✓`;
+      titleInput.value = '';
+    } catch (err) {
+      statusEl.textContent = err.message || 'Something went wrong.';
+    } finally {
+      submitBtn.disabled = false;
+      titleInput.focus();
+    }
+  });
+</script>
+</body>
+</html>

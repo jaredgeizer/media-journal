@@ -43,13 +43,19 @@
 
   const store = createStore();
 
+  // Whitelisted so a crafted ?redirect= query string can't be used to send
+  // people somewhere off-site — only these two local pages are valid targets.
+  const ALLOWED_REDIRECTS = ['index.html', 'quick-add.html'];
+  const requestedRedirect = new URLSearchParams(location.search).get('redirect');
+  const redirectTarget = ALLOWED_REDIRECTS.includes(requestedRedirect) ? requestedRedirect : 'index.html';
+
   if (store.mode === 'demo') {
     // No account system in demo mode — straight into the app.
-    location.replace('index.html');
+    location.replace(redirectTarget);
   }
 
   store.onAuthChange((user) => {
-    if (user) location.replace('index.html');
+    if (user) location.replace(redirectTarget);
   });
 
   let mode = 'signin';

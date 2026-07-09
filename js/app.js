@@ -25,6 +25,10 @@ let backlogSelectedTypes = new Set();
 let journalSelectedTypes = new Set();
 let journalSortKey = 'completed_desc';
 let backlogSortKey = 'added_desc';
+// When set, tapping a Discover result updates this existing item's fields
+// instead of creating a new one — how "Update Info" fills in a quick-added
+// item's real details.
+let discoverMergeTargetId = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -192,6 +196,10 @@ function switchTab(tabName) {
   if (tabName === 'journal' || tabName === 'backlog') {
     el('discoverQuery').value = '';
     el('headerSearchInput').value = '';
+  }
+  if (tabName !== 'discover' && discoverMergeTargetId) {
+    discoverMergeTargetId = null;
+    updateDiscoverMergeNotice();
   }
 }
 
@@ -1353,6 +1361,11 @@ function openEditModal(item) {
     ${externalLinkHtml(current)}
     ${descriptionHtml(current.description, 'editDescription')}
     ${
+      current.status === 'wishlist' && !current.poster_url
+        ? `<button type="button" class="btn-secondary" id="updateInfoBtn" style="width:100%;margin-bottom:12px;">Update Info</button>`
+        : ''
+    }
+    ${
       current.status === 'wishlist'
         ? `<div class="field" id="backlogTagField"><label>Tags</label>${tagChipsHtml('editBacklogTagChips', BACKLOG_TAGS, current.tags || [])}</div>`
         : ''
@@ -1384,6 +1397,14 @@ function openEditModal(item) {
   openModalWithContent(html);
   wireDescriptionToggle('editDescription');
   el('modalCloseBtn').addEventListener('click', closeModal);
+
+  const updateInfoBtn = el('updateInfoBtn');
+  if (updateInfoBtn) {
+    updateInfoBtn.addEventListener('click', () => {
+      closeModal();
+      startDiscoverMerge(current);
+    });
+  }
 
   async function persist(patch) {
     const updated = await store.updateItem(current.id, patch);
@@ -1740,6 +1761,63 @@ function rankDiscoverResults(results) {
     .map(({ r }) => r);
 }
 
+function updateDiscoverMergeNotice() {
+  const notice = el('discoverMergeNotice');
+  if (!notice) return;
+  if (!discoverMergeTargetId) {
+    notice.classList.add('hidden');
+    notice.innerHTML = '';
+    return;
+  }
+  const item = items.find((i) => i.id === discoverMergeTargetId);
+  notice.innerHTML = `Pick a match to update <strong>${escapeHtml(item ? item.title : '')}</strong> — <button type="button" class="link-btn" id="discoverMergeCancelBtn">Cancel</button>`;
+  notice.classList.remove('hidden');
+  el('discoverMergeCancelBtn').addEventListener('click', () => {
+    discoverMergeTargetId = null;
+    updateDiscoverMergeNotice();
+  });
+}
+
+// Entry point for the edit modal's "Update Info" button — jumps to Discover
+// with the item's title searched across every type, since a quick-added
+// item has no known type yet.
+function startDiscoverMerge(item) {
+  switchTab('discover');
+  discoverMergeTargetId = item.id;
+  el('discoverQuery').value = item.title;
+  el('discoverTypeChips').dataset.value = 'all';
+  document.querySelectorAll('#discoverTypeChips .chip').forEach((c) => c.classList.toggle('active', c.dataset.value === 'all'));
+  updateDiscoverMergeNotice();
+  runDiscoverSearch();
+}
+
+// Unlike Clean Up's gap-filling apply (which never overwrites existing
+// data), picking a specific Discover result is an explicit "yes, this is
+// it" choice — so it overwrites the item's identifying fields wholesale.
+async function mergeDiscoverResultIntoItem(itemId, result) {
+  const item = items.find((i) => i.id === itemId);
+  if (!item) return;
+  const updated = await store.updateItem(itemId, {
+    media_type: result.media_type,
+    title: result.title || item.title,
+    creator: result.creator || item.creator,
+    year: result.year || item.year,
+    poster_url: result.poster_url || item.poster_url,
+    description: result.description || item.description,
+    external_source: result.external_source || item.external_source,
+    external_id: result.external_id || item.external_id,
+    external_url: result.external_url || item.external_url,
+  });
+  const idx = items.findIndex((i) => i.id === itemId);
+  if (idx !== -1) items[idx] = updated;
+  discoverMergeTargetId = null;
+  updateDiscoverMergeNotice();
+  renderJournal();
+  renderBacklog();
+  switchTab('backlog');
+  openEditModal(updated);
+}
+
 async function runDiscoverSearch() {
   const query = el('discoverQuery').value.trim();
   if (!query) return;
@@ -1773,7 +1851,11 @@ async function runDiscoverSearch() {
   grid.innerHTML = (hasExactMatch ? '' : manualAddCardHtml()) + results.map((r, idx) => discoverCardHtml(r, idx)).join('');
   el('discoverEmpty').classList.toggle('hidden', results.length > 0);
   grid.querySelectorAll('[data-idx]').forEach((node) => {
-    node.addEventListener('click', () => openAddModal(results[parseInt(node.dataset.idx, 10)]));
+    node.addEventListener('click', () => {
+      const result = results[parseInt(node.dataset.idx, 10)];
+      if (discoverMergeTargetId) mergeDiscoverResultIntoItem(discoverMergeTargetId, result);
+      else openAddModal(result);
+    });
   });
   const manualAddCard = grid.querySelector('[data-manual-add]');
   if (manualAddCard) manualAddCard.addEventListener('click', () => openAddModal({}));
