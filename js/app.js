@@ -1,6 +1,6 @@
 import { createStore } from './storage.js';
 import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, SEARCHABLE_TYPES } from './search.js';
-import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson } from './importexport.js';
+import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
@@ -542,11 +542,7 @@ function journalEntryHtml(item) {
 }
 
 function findLibraryMatch(result) {
-  return items.find(
-    (i) =>
-      (result.external_id && result.external_source && i.external_id === result.external_id && i.external_source === result.external_source) ||
-      (i.media_type === result.media_type && i.title.trim().toLowerCase() === (result.title || '').trim().toLowerCase())
-  );
+  return items.find((i) => matchesLibraryItem(result, i));
 }
 
 function libraryStatusBadgeHtml(match) {

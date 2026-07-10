@@ -150,20 +150,30 @@ export async function parseLetterboxdZip(arrayBuffer) {
   return [...completed, ...backlogItems];
 }
 
-// Same match shape as findLibraryMatch() in app.js, applied against a
-// caller-supplied library snapshot instead of the module-level `items`.
+// Shared by dedupeAgainstLibrary() below and findLibraryMatch() in app.js.
+// External IDs are only trusted as a match/mismatch signal when *both*
+// sides have one — different real IDs (e.g. two different TMDb movies that
+// happen to share a title, like an animated original and a live-action
+// remake) must never fall through to the title-only comparison. When one or
+// both sides lack an external ID (manual entries, older CSV imports),
+// fall back to title + media type, additionally requiring the year to
+// match when both sides have one, so same-title/different-year titles
+// don't collide even without external IDs to disambiguate them.
+export function matchesLibraryItem(candidate, libraryItem) {
+  if (candidate.external_id && candidate.external_source && libraryItem.external_id && libraryItem.external_source) {
+    return libraryItem.external_id === candidate.external_id && libraryItem.external_source === candidate.external_source;
+  }
+  if (libraryItem.media_type !== candidate.media_type) return false;
+  if (libraryItem.title.trim().toLowerCase() !== (candidate.title || '').trim().toLowerCase()) return false;
+  if (libraryItem.year && candidate.year && libraryItem.year !== candidate.year) return false;
+  return true;
+}
+
 export function dedupeAgainstLibrary(incoming, existingItems) {
   const toAdd = [];
   const skipped = [];
   for (const item of incoming) {
-    const match = existingItems.find(
-      (i) =>
-        (item.external_id &&
-          item.external_source &&
-          i.external_id === item.external_id &&
-          i.external_source === item.external_source) ||
-        (i.media_type === item.media_type && i.title.trim().toLowerCase() === (item.title || '').trim().toLowerCase())
-    );
+    const match = existingItems.find((i) => matchesLibraryItem(item, i));
     if (match) skipped.push(item);
     else toAdd.push(item);
   }
