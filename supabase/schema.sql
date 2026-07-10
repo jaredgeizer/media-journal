@@ -8,15 +8,15 @@ create table if not exists public.items (
   user_id        uuid not null references auth.users (id) on delete cascade,
 
   -- what it is
-  media_type     text not null check (media_type in ('movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other')),
+  media_type     text not null check (media_type in ('movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other')),
   title          text not null,
-  creator        text,        -- director / author / host / etc.
+  creator        text,        -- director / author / host / artist / etc.
   year           text,
   poster_url     text,
   description    text,
 
   -- where it came from (for search results pulled from an external API)
-  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'manual'
+  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'apple_music' | 'rawg' | 'manual'
   external_id     text,
   external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 

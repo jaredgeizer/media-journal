@@ -5,7 +5,7 @@
 // - Movies & TV: TMDb (needs a free API token in js/config.js)
 // - Books: Google Books (works without a key, but shares a low global quota —
 //   add a free Google API key in js/config.js to get your own quota)
-// - Podcasts: iTunes Search API (no key required)
+// - Podcasts & albums: iTunes Search API (no key required)
 // - Video games: RAWG.io (needs a free API key in js/config.js)
 // - Plays / restaurants / other: no free search API wired up — added manually.
 
@@ -190,6 +190,25 @@ async function searchPodcasts(query) {
   }));
 }
 
+async function searchAlbums(query) {
+  const res = await fetch(
+    `https://itunes.apple.com/search?media=music&entity=album&limit=20&term=${encodeURIComponent(query)}`
+  );
+  if (!res.ok) throw new Error(`Album search failed (${res.status})`);
+  const data = await res.json();
+  return (data.results || []).map((r) => ({
+    media_type: 'album',
+    title: r.collectionName,
+    creator: r.artistName || null,
+    year: (r.releaseDate || '').slice(0, 4) || null,
+    poster_url: r.artworkUrl100 ? r.artworkUrl100.replace('100x100', '600x600') : null,
+    description: r.primaryGenreName ? `${r.primaryGenreName} album` : null,
+    external_source: 'apple_music',
+    external_id: String(r.collectionId),
+    external_url: r.collectionViewUrl || null,
+  }));
+}
+
 async function searchGames(query) {
   const key = rawgKey();
   if (!key) return [];
@@ -229,6 +248,7 @@ const SEARCHERS = {
   tv: searchTV,
   book: searchBooks,
   podcast: searchPodcasts,
+  album: searchAlbums,
   game: searchGames,
 };
 

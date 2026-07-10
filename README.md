@@ -12,8 +12,8 @@ desktop.
 - **Journal** — a blog-style feed of things you've finished, with your
   star rating and notes, newest first.
 - **Discover** — search movies & TV (TMDb), books (Google Books),
-  podcasts (iTunes), and video games (RAWG) and add results with one
-  tap. Anything else (plays, restaurants, etc.) can be added by hand.
+  podcasts & albums (iTunes), and video games (RAWG) and add results with
+  one tap. Anything else (plays, restaurants, etc.) can be added by hand.
 
 Clicking any item opens a modal with a **Mark as Watched/Read** button
 (everything except that lives in a second "review" step). That review
@@ -53,9 +53,9 @@ python3 -m http.server 8000
 Then visit `http://localhost:8000`. With no Supabase config, the app runs
 in **Demo Mode**: your data is saved to `localStorage` in that one
 browser only. It's a good way to try the UI before setting up real
-storage. Book and podcast search work in Demo Mode too (no key needed);
-movie/TV search needs a TMDb key and video game search needs a RAWG key
-either way (see below).
+storage. Book, podcast, and album search work in Demo Mode too (no key
+needed); movie/TV search needs a TMDb key and video game search needs a
+RAWG key either way (see below).
 
 ## Setting up real storage (Supabase) — for cross-device sync
 
@@ -99,7 +99,7 @@ alter table public.items add column if not exists progress_episode smallint;
 alter table public.items drop constraint if exists items_status_check;
 alter table public.items add constraint items_status_check check (status in ('wishlist', 'in_progress', 'completed'));
 alter table public.items drop constraint if exists items_media_type_check;
-alter table public.items add constraint items_media_type_check check (media_type in ('movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other'));
+alter table public.items add constraint items_media_type_check check (media_type in ('movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'));
 ```
 
 ## Setting up movie & TV search (TMDb)
@@ -109,7 +109,8 @@ alter table public.items add constraint items_media_type_check check (media_type
    **API Read Access Token (v4 auth)**.
 3. Paste it into `tmdbAccessToken` in `js/config.js`.
 
-Podcast search (iTunes Search API) needs no key and works out of the box.
+Podcast and album search (iTunes Search API) need no key and work out of
+the box.
 
 ## Setting up book search (Google Books)
 

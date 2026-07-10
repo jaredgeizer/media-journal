@@ -2,10 +2,10 @@ import { createStore } from './storage.js';
 import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson } from './importexport.js';
 
-const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
-const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
-const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', google_books: 'View on Google Books' };
-const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
+const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
+const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
+const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', apple_music: 'Open in Apple Music', google_books: 'View on Google Books' };
+const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', album: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
 const START_LABEL = { book: 'Start Reading', tv: 'Start Watching', game: 'Start Playing' };
 const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', game: 'Currently Playing' };
 
@@ -13,7 +13,7 @@ const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
 const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended'];
-const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'game', 'play', 'restaurant', 'other'];
+const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'];
 const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
 
 const store = createStore();
