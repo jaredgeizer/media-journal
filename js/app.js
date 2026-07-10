@@ -1765,6 +1765,7 @@ function openAddModal(prefill = {}) {
       <label for="addYear">Year</label>
       <input type="text" id="addYear" value="${escapeHtml(prefill.year || '')}">
     </div>
+    <div id="addModalError" class="notice warn hidden"></div>
     <div class="modal-actions stack">
       <button type="button" class="btn-secondary" id="addBacklogBtn">+ Add to Backlog</button>
       <button type="button" class="btn-secondary hidden" id="addCurrentlyBtn">Currently Reading</button>
@@ -1774,6 +1775,13 @@ function openAddModal(prefill = {}) {
   openModalWithContent(html);
   wireDescriptionToggle('addDescription');
   el('modalCloseBtn').addEventListener('click', closeModal);
+
+  function showAddError(err) {
+    const n = el('addModalError');
+    if (!n) return;
+    n.textContent = err.message || 'Could not save that item — please try again.';
+    n.classList.remove('hidden');
+  }
 
   function currentDraft() {
     return {
@@ -1805,12 +1813,16 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
-    const saved = await store.addItem({ ...draft, status: 'wishlist' });
-    items.unshift(saved);
-    renderBacklog();
-    renderJournal();
-    closeModal();
-    document.querySelector('.tab[data-tab="backlog"]').click();
+    try {
+      const saved = await store.addItem({ ...draft, status: 'wishlist' });
+      items.unshift(saved);
+      renderBacklog();
+      renderJournal();
+      closeModal();
+      document.querySelector('.tab[data-tab="backlog"]').click();
+    } catch (err) {
+      showAddError(err);
+    }
   });
 
   el('addCurrentlyBtn').addEventListener('click', async () => {
@@ -1819,13 +1831,17 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
-    const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
-    const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
-    items.unshift(saved);
-    renderBacklog();
-    renderJournal();
-    closeModal();
-    document.querySelector('.tab[data-tab="journal"]').click();
+    try {
+      const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
+      const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
+      items.unshift(saved);
+      renderBacklog();
+      renderJournal();
+      closeModal();
+      document.querySelector('.tab[data-tab="journal"]').click();
+    } catch (err) {
+      showAddError(err);
+    }
   });
 
   el('addWatchedBtn').addEventListener('click', async () => {
@@ -1834,19 +1850,23 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
-    const saved = await store.addItem({
-      ...draft,
-      status: 'completed',
-      rating: null,
-      tags: [],
-      notes: null,
-      date_completed: new Date().toISOString(),
-    });
-    items.unshift(saved);
-    renderBacklog();
-    renderJournal();
-    document.querySelector('.tab[data-tab="journal"]').click();
-    openReviewModal(saved);
+    try {
+      const saved = await store.addItem({
+        ...draft,
+        status: 'completed',
+        rating: null,
+        tags: [],
+        notes: null,
+        date_completed: new Date().toISOString(),
+      });
+      items.unshift(saved);
+      renderBacklog();
+      renderJournal();
+      document.querySelector('.tab[data-tab="journal"]').click();
+      openReviewModal(saved);
+    } catch (err) {
+      showAddError(err);
+    }
   });
 }
 
