@@ -12,8 +12,9 @@ desktop.
 - **Journal** — a blog-style feed of things you've finished, with your
   star rating and notes, newest first.
 - **Discover** — search movies & TV (TMDb), books (Google Books),
-  podcasts & albums (iTunes), and video games (RAWG) and add results with
-  one tap. Anything else (plays, restaurants, etc.) can be added by hand.
+  podcasts (iTunes), albums (MusicBrainz), and video games (RAWG) and add
+  results with one tap. Anything else (plays, restaurants, etc.) can be
+  added by hand.
 
 Clicking any item opens a modal with a **Mark as Watched/Read** button
 (everything except that lives in a second "review" step). That review
@@ -109,8 +110,8 @@ alter table public.items add constraint items_media_type_check check (media_type
    **API Read Access Token (v4 auth)**.
 3. Paste it into `tmdbAccessToken` in `js/config.js`.
 
-Podcast and album search (iTunes Search API) need no key and work out of
-the box.
+Podcast search (iTunes Search API) needs no key and works out of the box.
+Album search (MusicBrainz) also needs no key and works out of the box.
 
 ## Setting up book search (Google Books)
 
@@ -222,7 +223,7 @@ quick-add.html        Standalone fast-capture page (Apple Shortcuts, etc.)
 css/style.css        Liquid-glass design system
 js/config.js          Your Supabase + API keys (fill in, safe to commit)
 js/storage.js         Data layer: Supabase, or localStorage Demo Mode
-js/search.js           TMDb / Google Books / iTunes / RAWG search integrations
+js/search.js           TMDb / Google Books / iTunes / MusicBrainz / RAWG search integrations
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
 ```

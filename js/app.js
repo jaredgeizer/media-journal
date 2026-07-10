@@ -4,7 +4,7 @@ import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibr
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
-const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', apple_music: 'Open in Apple Music', google_books: 'View on Google Books' };
+const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', musicbrainz: 'View on MusicBrainz', google_books: 'View on Google Books' };
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', album: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
 const START_LABEL = { book: 'Start Reading', tv: 'Start Watching', game: 'Start Playing' };
 const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', game: 'Currently Playing' };
@@ -294,7 +294,11 @@ window.addEventListener('resize', () => {
 
 function posterOrEmoji(item, sizeClass = 'card-poster') {
   if (item.poster_url) {
-    return `<img class="${sizeClass}" src="${escapeHtml(item.poster_url)}" alt="" loading="lazy">`;
+    // onerror covers constructed-but-unverified image URLs (e.g. albums'
+    // Cover Art Archive links, which 404 for releases with no cover art)
+    // falling back to the same plain placeholder used when there's no
+    // poster_url at all, instead of a broken-image icon.
+    return `<img class="${sizeClass}" src="${escapeHtml(item.poster_url)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;${sizeClass}&quot;></div>'">`;
   }
   return `<div class="${sizeClass}"></div>`;
 }

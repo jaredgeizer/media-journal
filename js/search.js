@@ -5,7 +5,8 @@
 // - Movies & TV: TMDb (needs a free API token in js/config.js)
 // - Books: Google Books (works without a key, but shares a low global quota —
 //   add a free Google API key in js/config.js to get your own quota)
-// - Podcasts & albums: iTunes Search API (no key required)
+// - Podcasts: iTunes Search API (no key required)
+// - Albums: MusicBrainz (no key required)
 // - Video games: RAWG.io (needs a free API key in js/config.js)
 // - Plays / restaurants / other: no free search API wired up — added manually.
 
@@ -207,22 +208,32 @@ async function searchPodcasts(query) {
   }));
 }
 
+// Unlike the iTunes Search API used above, MusicBrainz's search endpoint
+// (also free/keyless) is a public API explicitly designed for direct
+// browser/CORS use, and doesn't single out music-catalog queries the way
+// iTunes appears to (podcast search there works fine; music/album search
+// does not, consistently, for some clients).
 async function searchAlbums(query) {
   const res = await fetchWithRetry(
-    `https://itunes.apple.com/search?media=music&entity=album&limit=20&term=${encodeURIComponent(query)}`
+    `https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(query)}&fmt=json&limit=20`
   );
   if (!res.ok) throw new Error(`Album search failed (${res.status})`);
   const data = await res.json();
-  return (data.results || []).map((r) => ({
+  return (data['release-groups'] || []).map((r) => ({
     media_type: 'album',
-    title: r.collectionName,
-    creator: r.artistName || null,
-    year: (r.releaseDate || '').slice(0, 4) || null,
-    poster_url: r.artworkUrl100 ? r.artworkUrl100.replace('100x100', '600x600') : null,
-    description: r.primaryGenreName ? `${r.primaryGenreName} album` : null,
-    external_source: 'apple_music',
-    external_id: String(r.collectionId),
-    external_url: r.collectionViewUrl || null,
+    title: r.title,
+    creator: (r['artist-credit'] || []).map((a) => a.name).join(', ') || null,
+    year: (r['first-release-date'] || '').slice(0, 4) || null,
+    // Cover art isn't in the release-group response — MusicBrainz's
+    // companion Cover Art Archive serves it at a predictable per-MBID URL
+    // instead of needing an extra fetch per result. Not every release group
+    // has cover art, so this 404s sometimes; posterOrEmoji() in app.js
+    // falls back to the usual placeholder when that happens.
+    poster_url: `https://coverartarchive.org/release-group/${r.id}/front-500`,
+    description: r['primary-type'] || null,
+    external_source: 'musicbrainz',
+    external_id: r.id,
+    external_url: `https://musicbrainz.org/release-group/${r.id}`,
   }));
 }
 
