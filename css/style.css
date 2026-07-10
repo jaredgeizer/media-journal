@@ -559,10 +559,12 @@ main {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  /* Below the dropdown (45) so it renders on top; above the mobile nav
-     (40) and its fade (30) so it dims/blurs everything behind the dropdown. */
+  /* No backdrop-filter here on purpose — the dropdown itself already blurs
+     what's directly behind it (see .tag-filter-dropdown's own
+     backdrop-filter below); this scrim only dims the rest of the page and
+     catches taps-outside-to-close, without blurring the whole screen.
+     Below the dropdown (45) so it renders on top; above the mobile nav
+     (40) and its fade (30) so it dims everything behind the dropdown. */
   z-index: 44;
   animation: fadein 0.2s ease;
 }
