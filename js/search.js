@@ -78,6 +78,23 @@ export async function getTVSeasonInfo(tmdbId) {
   return rawInfo;
 }
 
+// A handful of these free/keyless APIs can fail at the network level rather
+// than returning a clean HTTP error — a rejected fetch() (Safari calls this
+// "Load failed", Chrome "Failed to fetch") rather than a response with a
+// bad status code. iTunes Search in particular seems to trip this when two
+// requests to itunes.apple.com go out at once, which happens here since
+// podcast and album search both hit it and can run concurrently during an
+// "all types" search. Retry once after a short delay before giving up.
+async function fetchWithRetry(url, options, retries = 1) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    if (retries <= 0) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return fetchWithRetry(url, options, retries - 1);
+  }
+}
+
 function googleBooksKey() {
   const k = (window.MEDIA_JOURNAL_CONFIG || {}).googleBooksApiKey;
   return k && !k.startsWith('YOUR_') ? k : null;
@@ -172,7 +189,7 @@ async function searchBooks(query) {
 }
 
 async function searchPodcasts(query) {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://itunes.apple.com/search?media=podcast&limit=20&term=${encodeURIComponent(query)}`
   );
   if (!res.ok) throw new Error(`Podcast search failed (${res.status})`);
@@ -191,7 +208,7 @@ async function searchPodcasts(query) {
 }
 
 async function searchAlbums(query) {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://itunes.apple.com/search?media=music&entity=album&limit=20&term=${encodeURIComponent(query)}`
   );
   if (!res.ok) throw new Error(`Album search failed (${res.status})`);
