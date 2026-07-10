@@ -553,7 +553,7 @@ main {
 }
 .filter-toggle svg { width: 18px; height: 18px; }
 
-.tag-filter-wrap { position: relative; }
+.tag-filter-wrap { position: relative; z-index: 46; }
 
 .filter-scrim {
   position: fixed;
@@ -591,13 +591,21 @@ main {
 .tag-filter-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 13.5px;
-  padding: 6px 4px;
+  min-height: 44px;
+  padding: 6px 8px;
   cursor: pointer;
   color: var(--text-primary);
 }
 .tag-filter-option input { width: auto; }
+.tag-filter-option input[type="checkbox"],
+.tag-filter-option input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: rgb(var(--accent));
+}
 
 .tag-filter-empty { font-size: 13px; color: var(--text-tertiary); padding: 6px 4px; margin: 0; }
 
@@ -619,6 +627,14 @@ main {
 
 @media (max-width: 680px) {
   .tag-filter-dropdown { width: calc(100vw - 32px); }
+}
+
+/* main's own left/right padding drops to 12px under 480px (see the
+   `main { padding-left/right: 12px }` rule) — match it here so the dropdown
+   stays centered under the filter button instead of leaving extra space on
+   the right. */
+@media (max-width: 480px) {
+  .tag-filter-dropdown { width: calc(100vw - 24px); }
 }
 
 .tag-filter-section-heading {

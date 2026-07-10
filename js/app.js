@@ -25,6 +25,7 @@ let backlogSelectedTypes = new Set();
 let journalSelectedTypes = new Set();
 let journalSortKey = 'completed_desc';
 let backlogSortKey = 'added_desc';
+let backlogViewMode = 'grid';
 // When set, tapping a Discover result updates this existing item's fields
 // instead of creating a new one — how "Update Info" fills in a quick-added
 // item's real details.
@@ -617,12 +618,49 @@ function renderBacklog() {
     .filter((i) => backlogSelectedTags.size === 0 || (i.tags || []).some((t) => backlogSelectedTags.has(t)))
     .sort(BACKLOG_SORTS[backlogSortKey].cmp);
   const grid = el('backlogGrid');
-  grid.innerHTML = list.map(cardHtml).join('');
+  grid.classList.toggle('card-grid', backlogViewMode === 'grid');
+  grid.classList.toggle('journal-feed', backlogViewMode === 'list');
+  grid.innerHTML = list.map(backlogViewMode === 'grid' ? cardHtml : backlogEntryHtml).join('');
   el('backlogEmpty').classList.toggle('hidden', list.length > 0);
   grid.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
 }
+
+// Backlog's row-layout alternative to cardHtml — reuses Journal's
+// horizontal .journal-entry markup/styling rather than introducing a new
+// visual language, minus the watched-date/rating/notes fields backlog
+// items don't have.
+function backlogEntryHtml(item) {
+  return `
+    <div class="journal-entry glass" data-item-id="${item.id}">
+      ${posterOrEmoji(item)}
+      <div class="journal-entry-body">
+        <div class="journal-entry-header">
+          <p class="journal-entry-title">${escapeHtml(item.title)}</p>
+        </div>
+        <p class="journal-entry-meta">${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
+        ${tagPillsHtml(item)}
+      </div>
+    </div>`;
+}
+
+const BACKLOG_VIEW_ICONS = {
+  grid: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"></rect><rect x="13" y="3" width="8" height="8" rx="2"></rect><rect x="3" y="13" width="8" height="8" rx="2"></rect><rect x="13" y="13" width="8" height="8" rx="2"></rect></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1.5"></rect><rect x="3" y="10" width="18" height="4" rx="1.5"></rect><rect x="3" y="16" width="18" height="4" rx="1.5"></rect></svg>',
+};
+
+function updateBacklogViewToggleBtn() {
+  const btn = el('backlogViewToggleBtn');
+  btn.innerHTML = BACKLOG_VIEW_ICONS[backlogViewMode];
+  btn.setAttribute('aria-label', backlogViewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view');
+}
+
+el('backlogViewToggleBtn').addEventListener('click', () => {
+  backlogViewMode = backlogViewMode === 'grid' ? 'list' : 'grid';
+  updateBacklogViewToggleBtn();
+  renderBacklog();
+});
 
 function currentlyEntryHtml(item) {
   if (PERCENT_PROGRESS_TYPES.includes(item.media_type)) {
@@ -1001,14 +1039,25 @@ function updateFilterScrim() {
 }
 
 document.addEventListener('click', (e) => {
+  // Only resync here when an outside click actually closes a dropdown.
+  // Clicking a tag/rating checkbox *inside* an open dropdown also bubbles
+  // to this listener before the checkbox's own 'change' handler fires (click
+  // fires, then input/change fire once the click has finished dispatching)
+  // — resyncing unconditionally on every click would read backlogSelectedTags/
+  // journalSelectedTags before that handler updates them and stamp the
+  // checkbox's checked state back to its old value, silently undoing the tap.
+  let closedAny = false;
   document.querySelectorAll('.tag-filter-dropdown').forEach((dropdown) => {
     if (!dropdown.classList.contains('hidden') && !e.target.closest('.tag-filter-wrap')) {
       dropdown.classList.add('hidden');
+      closedAny = true;
     }
   });
-  syncFilterUI('journal');
-  syncFilterUI('backlog');
-  updateFilterScrim();
+  if (closedAny) {
+    syncFilterUI('journal');
+    syncFilterUI('backlog');
+    updateFilterScrim();
+  }
 });
 
 // ---------- Stars widget ----------
