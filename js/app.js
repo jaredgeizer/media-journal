@@ -1624,6 +1624,7 @@ function openEditModal(item) {
       <div style="flex:1">
         <p class="modal-title">${escapeHtml(current.title)}</p>
         <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
+        ${current.media_type === 'tv' ? `<p class="modal-subtitle" id="modalSeasonCount"></p>` : ''}
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
@@ -1677,6 +1678,15 @@ function openEditModal(item) {
     updateInfoBtn.addEventListener('click', () => {
       closeModal();
       startDiscoverMerge(current);
+    });
+  }
+
+  if (current.media_type === 'tv') {
+    getSeasonInfoCached(current).then((info) => {
+      const seasonCountEl = el('modalSeasonCount');
+      if (!info || !seasonCountEl) return;
+      const n = info.seasons.length;
+      seasonCountEl.textContent = `${n} Season${n === 1 ? '' : 's'}`;
     });
   }
 
