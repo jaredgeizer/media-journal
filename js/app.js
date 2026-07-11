@@ -12,7 +12,7 @@ const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', g
 const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
-const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended'];
+const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season'];
 const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'];
 const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
 
@@ -388,7 +388,7 @@ function tagPoolForType(mediaType) {
   items.forEach((i) => {
     if (i.media_type === mediaType) {
       (i.tags || []).forEach((t) => {
-        if (t !== '⭐ Shortlist') used.add(t);
+        if (!BACKLOG_TAGS.includes(t)) used.add(t);
       });
     }
   });
@@ -472,9 +472,12 @@ async function getSeasonInfoCached(item) {
 
 // Completed shows can gain new seasons after you finish them. Once TMDb
 // reports a season beyond the one you last watched, move the show back to
-// Backlog — rating/notes/tags are left untouched (this isn't a "start
-// over", it's "there's more now") — pre-positioned at episode 1 of the new
-// season so resuming continues the story instead of rewinding to season 1.
+// Backlog — rating/notes are left untouched (this isn't a "start over",
+// it's "there's more now") — pre-positioned at episode 1 of the new season
+// so resuming continues the story instead of rewinding to season 1. Also
+// tags it with 🆕 New Season (a BACKLOG_TAGS entry, same lifecycle as
+// Shortlist/Recommended: toggleable in the edit modal, filterable in
+// Backlog, and auto-stripped once the show is marked watched again).
 // Only covers shows tracked through Currently Watching (progress_season
 // recorded) with a TMDb id; see the plan notes for why that's a known gap.
 async function checkForNewTvSeasons() {
@@ -491,6 +494,7 @@ async function checkForNewTvSeasons() {
       progress_season: item.progress_season + 1,
       progress_episode: 1,
       notified_season_at: new Date().toISOString(),
+      tags: [...new Set([...(item.tags || []), '🆕 New Season'])],
     });
     const idx = items.findIndex((i) => i.id === item.id);
     if (idx !== -1) items[idx] = updated;
