@@ -74,7 +74,11 @@
     </div>
     <div id="currentlyContainer" class="hidden">
       <h2 class="section-heading">Currently Reading, Watching &amp; Playing</h2>
-      <div id="currentlyFeed" class="currently-scroll"></div>
+      <div class="currently-scroll-wrap">
+        <div id="currentlyFeed" class="currently-scroll"></div>
+        <div class="currently-fade currently-fade-left" aria-hidden="true"></div>
+        <div class="currently-fade currently-fade-right" aria-hidden="true"></div>
+      </div>
     </div>
     <div id="journalFeed" class="journal-feed"></div>
     <p id="journalEmpty" class="empty-state hidden">Nothing logged yet. Rate something from your backlog to start your journal.</p>

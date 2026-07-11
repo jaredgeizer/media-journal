@@ -723,6 +723,8 @@ main {
 
 #currentlyContainer { margin-bottom: 28px; }
 
+.currently-scroll-wrap { position: relative; }
+
 .currently-scroll {
   display: flex;
   gap: 12px;
@@ -730,6 +732,26 @@ main {
   scroll-snap-type: x proximity;
   padding-bottom: 6px;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Edge-to-edge bleed + fade cue are mobile-only (see the max-width: 680px/
+   480px overrides below) — on desktop the carousel stays contained within
+   main's normal layout width like everything else. */
+.currently-fade {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 6px;
+  width: 8px;
+  pointer-events: none;
+}
+.currently-fade-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(var(--page-bg-rgb), 0.6) 0%, rgba(var(--page-bg-rgb), 0) 100%);
+}
+.currently-fade-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(var(--page-bg-rgb), 0.6) 0%, rgba(var(--page-bg-rgb), 0) 100%);
 }
 
 .currently-card {
@@ -1479,6 +1501,17 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
   main { padding-bottom: 130px; }
 
+  /* Currently Reading/Watching carousel bleeds to the true screen edges on
+     mobile instead of stopping at main's padding, with a small fade at each
+     side (same technique as .bottom-fade above) so cards don't cut off
+     abruptly as you scroll past them. */
+  .currently-scroll-wrap { margin: 0 -16px; }
+  /* scroll-padding has to match padding here, or scroll-snap-align on the
+     cards auto-scrolls past the padding on load to snap the first card
+     flush with the true edge, undoing the resting inset entirely. */
+  .currently-scroll { padding-left: 16px; padding-right: 16px; scroll-padding-left: 16px; scroll-padding-right: 16px; }
+  .currently-fade { display: block; }
+
   /* iOS Safari auto-zooms the page when focusing a text input smaller
      than 16px, which stays zoomed in (and misaligned) after the input
      blurs. Keep every focusable text input at 16px+ on mobile so
@@ -1493,4 +1526,14 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   }
 
   .currently-progress-number { width: 50px; }
+}
+
+/* Narrower phones drop main's own side padding to 12px (see the other
+   max-width: 480px block above) — match it here so the carousel's resting
+   inset still lines up with the rest of the page instead of leaving
+   uneven space on one side. Declared after the max-width: 680px block
+   above so it wins the cascade at these narrower widths. */
+@media (max-width: 480px) {
+  .currently-scroll-wrap { margin: 0 -12px; }
+  .currently-scroll { padding-left: 12px; padding-right: 12px; scroll-padding-left: 12px; scroll-padding-right: 12px; }
 }
