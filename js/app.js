@@ -1686,7 +1686,7 @@ function openEditModal(item) {
         : { status: 'in_progress', progress_season: current.progress_season || 1, progress_episode: current.progress_episode || 1 };
       await persist(patch);
       closeModal();
-      document.querySelector('.tab[data-tab="journal"]').click();
+      switchTab('journal');
     });
   }
 
@@ -1699,19 +1699,25 @@ function openEditModal(item) {
   const markBtn = el('markWatchedBtn');
   if (markBtn) {
     markBtn.addEventListener('click', async () => {
-      const updated = await persist({
-        status: 'completed',
-        date_completed: current.date_completed || new Date().toISOString(),
-        tags: (current.tags || []).filter((t) => !BACKLOG_TAGS.includes(t)),
-      });
-      document.querySelector('.tab[data-tab="journal"]').click();
-      openReviewModal(updated);
+      markBtn.disabled = true;
+      try {
+        const updated = await persist({
+          status: 'completed',
+          date_completed: current.date_completed || new Date().toISOString(),
+          tags: (current.tags || []).filter((t) => !BACKLOG_TAGS.includes(t)),
+        });
+        switchTab('journal');
+        openReviewModalSafely(updated);
+      } catch (err) {
+        markBtn.disabled = false;
+        alert(err.message || 'Could not save that — please try again.');
+      }
     });
   }
 
   const editReviewBtn = el('editReviewBtn');
   if (editReviewBtn) {
-    editReviewBtn.addEventListener('click', () => openReviewModal(current));
+    editReviewBtn.addEventListener('click', () => openReviewModalSafely(current));
   }
 
   const unmarkBtn = el('unmarkBtn');
@@ -1779,7 +1785,7 @@ function openReviewModal(item) {
   openModalWithContent(html);
   el('modalCloseBtn').addEventListener('click', closeModal);
   el('reviewDoneBtn').addEventListener('click', () => {
-    document.querySelector('.tab[data-tab="journal"]').click();
+    switchTab('journal');
     closeModal();
   });
 
@@ -1893,14 +1899,19 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
+    // Disabled for the duration of the save so a slow connection + a
+    // second tap can't fire this twice and create a duplicate item.
+    const btn = el('addBacklogBtn');
+    btn.disabled = true;
     try {
       const saved = await store.addItem({ ...draft, status: 'wishlist' });
       items.unshift(saved);
       renderBacklog();
       renderJournal();
       closeModal();
-      document.querySelector('.tab[data-tab="backlog"]').click();
+      switchTab('backlog');
     } catch (err) {
+      btn.disabled = false;
       showAddError(err);
     }
   });
@@ -1911,6 +1922,8 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
+    const btn = el('addCurrentlyBtn');
+    btn.disabled = true;
     try {
       const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
       const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
@@ -1918,8 +1931,9 @@ function openAddModal(prefill = {}) {
       renderBacklog();
       renderJournal();
       closeModal();
-      document.querySelector('.tab[data-tab="journal"]').click();
+      switchTab('journal');
     } catch (err) {
+      btn.disabled = false;
       showAddError(err);
     }
   });
@@ -1930,6 +1944,8 @@ function openAddModal(prefill = {}) {
       el('addTitle').focus();
       return;
     }
+    const btn = el('addWatchedBtn');
+    btn.disabled = true;
     try {
       const saved = await store.addItem({
         ...draft,
@@ -1942,12 +1958,28 @@ function openAddModal(prefill = {}) {
       items.unshift(saved);
       renderBacklog();
       renderJournal();
-      document.querySelector('.tab[data-tab="journal"]').click();
-      openReviewModal(saved);
+      switchTab('journal');
+      openReviewModalSafely(saved);
     } catch (err) {
+      btn.disabled = false;
       showAddError(err);
     }
   });
+}
+
+// The item is already safely saved by the time this runs — if building the
+// review UI itself fails for some reason, don't leave the user stranded
+// wondering whether the save even happened. Falls back to a plain alert()
+// rather than another modal, since it can't assume any particular DOM
+// state still exists at the point of failure.
+function openReviewModalSafely(item) {
+  try {
+    openReviewModal(item);
+  } catch (err) {
+    console.error('Failed to open the review modal:', err);
+    closeModal();
+    alert(`"${item.title}" was saved to your Journal, but the review screen couldn't open. Tap it in your Journal to add a rating or notes.`);
+  }
 }
 
 el('manualAddBtn').addEventListener('click', () => openAddModal({}));
