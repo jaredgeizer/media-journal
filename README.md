@@ -42,6 +42,14 @@ episode for TV — TV cards also get a one-tap **Next Episode** button)
 until you mark it watched/read, which moves it into the journal feed
 below.
 
+The 🔔 bell next to the account icon surfaces two kinds of updates,
+checked once per app load: a TV show you finished moves back to Backlog
+(rating/notes kept) once a new season airs, and a Backlog movie gets a
+heads-up once (7 days out, whatever the actual countdown is by the time
+you next open the app) and again on/shortly after release day. The 5 most
+recent notifications stay listed even after you've seen them — opening
+the bell just clears the unread dot. Tapping one opens that item.
+
 ## Running it locally (Demo Mode)
 
 No setup required. Just serve the folder and open it in a browser:
@@ -101,6 +109,11 @@ alter table public.items drop constraint if exists items_status_check;
 alter table public.items add constraint items_status_check check (status in ('wishlist', 'in_progress', 'completed'));
 alter table public.items drop constraint if exists items_media_type_check;
 alter table public.items add constraint items_media_type_check check (media_type in ('movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'));
+alter table public.items add column if not exists release_date date;
+alter table public.items add column if not exists notified_season_at timestamptz;
+alter table public.items add column if not exists notified_release_soon_at timestamptz;
+alter table public.items add column if not exists notified_release_soon_days smallint;
+alter table public.items add column if not exists notified_release_day_at timestamptz;
 ```
 
 ## Setting up movie & TV search (TMDb)

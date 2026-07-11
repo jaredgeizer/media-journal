@@ -124,6 +124,7 @@ async function searchMovies(query) {
     title: r.title,
     creator: null,
     year: (r.release_date || '').slice(0, 4) || null,
+    release_date: r.release_date || null,
     poster_url: r.poster_path ? TMDB_IMG + r.poster_path : null,
     description: r.overview || null,
     external_source: 'tmdb',

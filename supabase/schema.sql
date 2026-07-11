@@ -31,6 +31,17 @@ create table if not exists public.items (
   progress_season   smallint,                                            -- TV shows
   progress_episode  smallint,                                            -- TV shows
 
+  -- release date (movies only, from TMDb) and notification-log bookkeeping:
+  -- each *_at column is set once, the first time that notification fires
+  -- for this item, so it never repeats. notified_release_soon_days freezes
+  -- how many days were left at that moment, since the countdown itself
+  -- keeps moving but the notification text shouldn't change after the fact.
+  release_date               date,
+  notified_season_at         timestamptz,
+  notified_release_soon_at   timestamptz,
+  notified_release_soon_days smallint,
+  notified_release_day_at    timestamptz,
+
   date_added     timestamptz not null default now(),
   date_completed timestamptz,
   created_at     timestamptz not null default now(),

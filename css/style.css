@@ -180,7 +180,9 @@ button, input, select, textarea {
 
 .account-dropdown-item:hover { background: rgba(120, 120, 128, 0.14); }
 
-.notif-menu { position: relative; }
+/* Above .tag-filter-wrap (46) so the dropdown isn't hidden behind the
+   filter button when they overlap; still below modals (50). */
+.notif-menu { position: relative; z-index: 47; }
 
 .notif-dot {
   position: absolute;

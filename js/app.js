@@ -155,9 +155,10 @@ async function loadItems() {
   await migrateFavoriteTag();
   renderBacklog();
   renderJournal();
-  // Not awaited — this makes its own network calls per completed TV show
-  // and shouldn't delay first paint; it re-renders itself once done.
+  // Not awaited — these make their own network/storage calls and shouldn't
+  // delay first paint; each re-renders itself once done.
   checkForNewTvSeasons();
+  checkForUpcomingMovies();
 }
 
 el('signOutBtn').addEventListener('click', async () => {
@@ -172,7 +173,13 @@ el('accountBtn').addEventListener('click', (e) => {
 
 el('notifBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  el('notifDropdown').classList.toggle('hidden');
+  const dropdown = el('notifDropdown');
+  const opening = dropdown.classList.contains('hidden');
+  dropdown.classList.toggle('hidden');
+  if (opening) {
+    localStorage.setItem(NOTIF_LAST_SEEN_KEY, new Date().toISOString());
+    el('notifDot').classList.add('hidden');
+  }
 });
 
 el('importExportBtn').addEventListener('click', () => {
@@ -483,7 +490,48 @@ async function checkForNewTvSeasons() {
       date_completed: null,
       progress_season: item.progress_season + 1,
       progress_episode: 1,
+      notified_season_at: new Date().toISOString(),
     });
+    const idx = items.findIndex((i) => i.id === item.id);
+    if (idx !== -1) items[idx] = updated;
+    changed = true;
+  }
+  if (changed) {
+    renderBacklog();
+    renderJournal();
+  }
+}
+
+// Backlog movies get a "coming soon" heads-up once, the first time the app
+// is opened with 0-7 days left before release — the displayed day-count is
+// frozen at that moment (notified_release_soon_days), not recomputed on
+// later views — and a separate "out now" heads-up once, the first time the
+// app is opened on or shortly after release day. Both use a -7..0 day
+// grace window on the "day of" side so opening the app a few days late
+// still notifies, without misfiring on old movies added long after their
+// actual release (no window on the far side would never fire at all).
+async function checkForUpcomingMovies() {
+  const candidates = items.filter(
+    (i) =>
+      i.media_type === 'movie' &&
+      i.status === 'wishlist' &&
+      i.release_date &&
+      (!i.notified_release_soon_at || !i.notified_release_day_at)
+  );
+  let changed = false;
+  const now = new Date();
+  for (const item of candidates) {
+    const daysUntilRelease = Math.round((new Date(item.release_date) - now) / (1000 * 60 * 60 * 24));
+    const patch = {};
+    if (!item.notified_release_soon_at && daysUntilRelease >= 0 && daysUntilRelease <= 7) {
+      patch.notified_release_soon_at = now.toISOString();
+      patch.notified_release_soon_days = daysUntilRelease;
+    }
+    if (!item.notified_release_day_at && daysUntilRelease <= 0 && daysUntilRelease >= -7) {
+      patch.notified_release_day_at = now.toISOString();
+    }
+    if (Object.keys(patch).length === 0) continue;
+    const updated = await store.updateItem(item.id, patch);
     const idx = items.findIndex((i) => i.id === item.id);
     if (idx !== -1) items[idx] = updated;
     changed = true;
@@ -869,24 +917,49 @@ function renderJournal() {
   renderNotifications();
 }
 
-// A wishlist TV item with a rating is otherwise unreachable — manually-
-// added backlog items never have one, and the existing "move back to
-// Backlog" action (unmarkBtn) always clears rating — so that combination
-// uniquely (and cheaply) identifies a show checkForNewTvSeasons() cycled
-// back after a new season dropped. No separate notifications table.
+// Notifications aren't a separate table — each is just a timestamp column
+// on the item itself (notified_season_at / notified_release_soon_at /
+// notified_release_day_at), set once the first time it fires. That keeps
+// them naturally deduped forever without a read/unread flag per event.
+// Unread state (the red dot) is tracked separately, in localStorage, since
+// it's a lightweight per-device UI preference rather than data that needs
+// cross-device sync.
+const NOTIF_LAST_SEEN_KEY = 'mediaJournal.notifLastSeenAt';
+
+function notificationEvents() {
+  const events = [];
+  for (const item of items) {
+    if (item.notified_season_at) {
+      events.push({ item, at: item.notified_season_at, message: 'New season available' });
+    }
+    if (item.notified_release_soon_at) {
+      const days = item.notified_release_soon_days;
+      const message = days === 0 ? 'Out today' : days === 1 ? 'Out in 1 day' : `Out in ${days} days`;
+      events.push({ item, at: item.notified_release_soon_at, message });
+    }
+    if (item.notified_release_day_at) {
+      events.push({ item, at: item.notified_release_day_at, message: 'Out now' });
+    }
+  }
+  events.sort((a, b) => new Date(b.at) - new Date(a.at));
+  return events.slice(0, 5);
+}
+
 function renderNotifications() {
-  const list = items.filter((i) => i.media_type === 'tv' && i.status === 'wishlist' && i.rating != null);
-  el('notifDot').classList.toggle('hidden', list.length === 0);
-  el('notifEmpty').classList.toggle('hidden', list.length > 0);
+  const events = notificationEvents();
+  const lastSeen = localStorage.getItem(NOTIF_LAST_SEEN_KEY);
+  const hasUnread = events.some((e) => !lastSeen || new Date(e.at) > new Date(lastSeen));
+  el('notifDot').classList.toggle('hidden', !hasUnread);
+  el('notifEmpty').classList.toggle('hidden', events.length > 0);
   const notifList = el('notifList');
-  notifList.innerHTML = list
+  notifList.innerHTML = events
     .map(
-      (item) => `
-    <button type="button" class="notif-item" data-item-id="${item.id}">
-      ${posterOrEmoji(item, 'notif-item-poster')}
+      (e) => `
+    <button type="button" class="notif-item" data-item-id="${e.item.id}">
+      ${posterOrEmoji(e.item, 'notif-item-poster')}
       <div class="notif-item-text">
-        <p class="notif-item-title">${escapeHtml(item.title)}</p>
-        <p class="notif-item-sub">New season available</p>
+        <p class="notif-item-title">${escapeHtml(e.item.title)}</p>
+        <p class="notif-item-sub">${escapeHtml(e.message)}</p>
       </div>
     </button>`
     )
@@ -1584,6 +1657,11 @@ function openEditModal(item) {
             <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Backlog'}</button>
           </div>
         `
+        : current.status === 'in_progress'
+        ? `
+          <button type="button" class="btn-secondary" id="updateProgressBtn" style="width:100%;margin-bottom:12px;">Update</button>
+          <button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Finished</button>
+        `
         : `<button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Mark as ${COMPLETED_VERB[current.media_type] || 'Done'}</button>`
     }
     <div class="modal-actions">
@@ -1694,6 +1772,14 @@ function openEditModal(item) {
     wireTagChips('editBacklogTagChips', () => {
       persist({ tags: getActiveChipValues('editBacklogTagChips') });
     });
+  }
+
+  const updateProgressBtn = el('updateProgressBtn');
+  if (updateProgressBtn) {
+    // Progress fields already autosave on change (see the wireStars/
+    // slider/select listeners above) — this is just a dismiss action for
+    // people who expect an explicit "save and close" button.
+    updateProgressBtn.addEventListener('click', () => closeModal());
   }
 
   const markBtn = el('markWatchedBtn');
@@ -1880,6 +1966,7 @@ function openAddModal(prefill = {}) {
       external_source: prefill.external_source || 'manual',
       external_id: prefill.external_id || null,
       external_url: prefill.external_url || null,
+      release_date: prefill.release_date || null,
     };
   }
 
