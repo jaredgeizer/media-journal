@@ -488,17 +488,24 @@ async function checkForNewTvSeasons() {
   for (const item of candidates) {
     const info = await getSeasonInfoCached(item);
     if (!info || info.seasons.length <= item.progress_season) continue;
-    const updated = await store.updateItem(item.id, {
-      status: 'wishlist',
-      date_completed: null,
-      progress_season: item.progress_season + 1,
-      progress_episode: 1,
-      notified_season_at: new Date().toISOString(),
-      tags: [...new Set([...(item.tags || []), '🆕 New Season'])],
-    });
-    const idx = items.findIndex((i) => i.id === item.id);
-    if (idx !== -1) items[idx] = updated;
-    changed = true;
+    try {
+      const updated = await store.updateItem(item.id, {
+        status: 'wishlist',
+        date_completed: null,
+        progress_season: item.progress_season + 1,
+        progress_episode: 1,
+        notified_season_at: new Date().toISOString(),
+        tags: [...new Set([...(item.tags || []), '🆕 New Season'])],
+      });
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) items[idx] = updated;
+      changed = true;
+    } catch (err) {
+      // Don't let one bad write (e.g. a lagging schema) throw an unhandled
+      // rejection and silently take out the rest of the batch — this runs
+      // fire-and-forget with no UI to surface an error into.
+      console.warn('checkForNewTvSeasons: failed to update', item.id, err);
+    }
   }
   if (changed) {
     renderBacklog();
@@ -535,10 +542,16 @@ async function checkForUpcomingMovies() {
       patch.notified_release_day_at = now.toISOString();
     }
     if (Object.keys(patch).length === 0) continue;
-    const updated = await store.updateItem(item.id, patch);
-    const idx = items.findIndex((i) => i.id === item.id);
-    if (idx !== -1) items[idx] = updated;
-    changed = true;
+    try {
+      const updated = await store.updateItem(item.id, patch);
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) items[idx] = updated;
+      changed = true;
+    } catch (err) {
+      // Same reasoning as checkForNewTvSeasons(): fire-and-forget, no UI to
+      // surface an error into, so one bad write shouldn't kill the batch.
+      console.warn('checkForUpcomingMovies: failed to update', item.id, err);
+    }
   }
   if (changed) {
     renderBacklog();
@@ -1970,8 +1983,9 @@ function openAddModal(prefill = {}) {
   }
 
   function currentDraft() {
+    const type = el('addType').value;
     return {
-      media_type: el('addType').value,
+      media_type: type,
       title: el('addTitle').value.trim(),
       creator: el('addCreator').value.trim() || null,
       year: el('addYear').value.trim() || null,
@@ -1980,7 +1994,11 @@ function openAddModal(prefill = {}) {
       external_source: prefill.external_source || 'manual',
       external_id: prefill.external_id || null,
       external_url: prefill.external_url || null,
-      release_date: prefill.release_date || null,
+      // Only movies ever populate release_date (from TMDb search) — omit
+      // the key entirely for other types rather than sending it as null,
+      // so a lagging/missing release_date column can't block adding a
+      // book/game/show/etc. that has nothing to do with it.
+      ...(type === 'movie' ? { release_date: prefill.release_date || null } : {}),
     };
   }
 
@@ -2172,6 +2190,10 @@ async function mergeDiscoverResultIntoItem(itemId, result) {
     external_source: result.external_source || item.external_source,
     external_id: result.external_id || item.external_id,
     external_url: result.external_url || item.external_url,
+    // Same movie-only guard as currentDraft() — omit the key for non-movie
+    // merges rather than sending null, so this can't block "Update Info"
+    // on a book/game/show/etc.
+    ...(result.media_type === 'movie' ? { release_date: result.release_date || item.release_date } : {}),
   });
   const idx = items.findIndex((i) => i.id === itemId);
   if (idx !== -1) items[idx] = updated;
