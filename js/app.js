@@ -121,6 +121,7 @@ async function boot() {
   await store.init();
 
   el('accountMenu').classList.remove('hidden');
+  el('notifMenu').classList.remove('hidden');
   if (store.mode === 'demo') {
     el('demoBanner').classList.remove('hidden');
     el('signOutBtn').classList.add('hidden');
@@ -154,6 +155,9 @@ async function loadItems() {
   await migrateFavoriteTag();
   renderBacklog();
   renderJournal();
+  // Not awaited — this makes its own network calls per completed TV show
+  // and shouldn't delay first paint; it re-renders itself once done.
+  checkForNewTvSeasons();
 }
 
 el('signOutBtn').addEventListener('click', async () => {
@@ -164,6 +168,11 @@ el('signOutBtn').addEventListener('click', async () => {
 el('accountBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   el('accountDropdown').classList.toggle('hidden');
+});
+
+el('notifBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  el('notifDropdown').classList.toggle('hidden');
 });
 
 el('importExportBtn').addEventListener('click', () => {
@@ -185,6 +194,10 @@ document.addEventListener('click', (e) => {
   const dropdown = el('accountDropdown');
   if (!dropdown.classList.contains('hidden') && !e.target.closest('.account-menu')) {
     dropdown.classList.add('hidden');
+  }
+  const notifDropdown = el('notifDropdown');
+  if (!notifDropdown.classList.contains('hidden') && !e.target.closest('.notif-menu')) {
+    notifDropdown.classList.add('hidden');
   }
 });
 
@@ -450,6 +463,37 @@ async function getSeasonInfoCached(item) {
   return info;
 }
 
+// Completed shows can gain new seasons after you finish them. Once TMDb
+// reports a season beyond the one you last watched, move the show back to
+// Backlog — rating/notes/tags are left untouched (this isn't a "start
+// over", it's "there's more now") — pre-positioned at episode 1 of the new
+// season so resuming continues the story instead of rewinding to season 1.
+// Only covers shows tracked through Currently Watching (progress_season
+// recorded) with a TMDb id; see the plan notes for why that's a known gap.
+async function checkForNewTvSeasons() {
+  const candidates = items.filter(
+    (i) => i.media_type === 'tv' && i.status === 'completed' && i.progress_season != null && tmdbTvId(i)
+  );
+  let changed = false;
+  for (const item of candidates) {
+    const info = await getSeasonInfoCached(item);
+    if (!info || info.seasons.length <= item.progress_season) continue;
+    const updated = await store.updateItem(item.id, {
+      status: 'wishlist',
+      date_completed: null,
+      progress_season: item.progress_season + 1,
+      progress_episode: 1,
+    });
+    const idx = items.findIndex((i) => i.id === item.id);
+    if (idx !== -1) items[idx] = updated;
+    changed = true;
+  }
+  if (changed) {
+    renderBacklog();
+    renderJournal();
+  }
+}
+
 function episodeCountForSeason(info, seasonNumber) {
   if (!info) return null;
   const season = info.seasons.find((s) => s.seasonNumber === seasonNumber);
@@ -625,6 +669,7 @@ function renderBacklog() {
   grid.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
+  renderNotifications();
 }
 
 // Backlog's row-layout alternative to cardHtml — reuses Journal's
@@ -821,6 +866,37 @@ function renderJournal() {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
   renderCurrently();
+  renderNotifications();
+}
+
+// A wishlist TV item with a rating is otherwise unreachable — manually-
+// added backlog items never have one, and the existing "move back to
+// Backlog" action (unmarkBtn) always clears rating — so that combination
+// uniquely (and cheaply) identifies a show checkForNewTvSeasons() cycled
+// back after a new season dropped. No separate notifications table.
+function renderNotifications() {
+  const list = items.filter((i) => i.media_type === 'tv' && i.status === 'wishlist' && i.rating != null);
+  el('notifDot').classList.toggle('hidden', list.length === 0);
+  el('notifEmpty').classList.toggle('hidden', list.length > 0);
+  const notifList = el('notifList');
+  notifList.innerHTML = list
+    .map(
+      (item) => `
+    <button type="button" class="notif-item" data-item-id="${item.id}">
+      ${posterOrEmoji(item, 'notif-item-poster')}
+      <div class="notif-item-text">
+        <p class="notif-item-title">${escapeHtml(item.title)}</p>
+        <p class="notif-item-sub">New season available</p>
+      </div>
+    </button>`
+    )
+    .join('');
+  notifList.querySelectorAll('[data-item-id]').forEach((node) => {
+    node.addEventListener('click', () => {
+      el('notifDropdown').classList.add('hidden');
+      openEditModal(items.find((i) => i.id === node.dataset.itemId));
+    });
+  });
 }
 
 function wireChipGroup(containerId, onChange) {
@@ -1601,9 +1677,13 @@ function openEditModal(item) {
   const startBtn = el('startProgressBtn');
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
+      // A show cycled back to Backlog after a new season dropped already
+      // has progress_season/progress_episode set (pointing at the new
+      // season, episode 1) — only default to season 1 for a show that's
+      // never been started at all.
       const patch = PERCENT_PROGRESS_TYPES.includes(current.media_type)
         ? { status: 'in_progress', progress_percent: 0 }
-        : { status: 'in_progress', progress_season: 1, progress_episode: 1 };
+        : { status: 'in_progress', progress_season: current.progress_season || 1, progress_episode: current.progress_episode || 1 };
       await persist(patch);
       closeModal();
       document.querySelector('.tab[data-tab="journal"]').click();
