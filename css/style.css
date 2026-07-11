@@ -139,7 +139,6 @@ button, input, select, textarea {
   border-radius: 50%;
   border: 1px solid var(--glass-border);
   background: rgba(120, 120, 128, 0.14);
-  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,6 +147,7 @@ button, input, select, textarea {
   transition: background-color 0.2s ease;
 }
 .account-icon-btn:hover { background: rgba(120, 120, 128, 0.24); }
+.account-icon-btn svg { width: 18px; height: 18px; }
 
 .account-dropdown {
   position: absolute;
