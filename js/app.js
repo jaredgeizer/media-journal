@@ -166,13 +166,27 @@ el('signOutBtn').addEventListener('click', async () => {
   location.replace('login.html');
 });
 
+// Each of the header/filter dropdown toggle buttons calls stopPropagation()
+// so its own click doesn't immediately re-trigger the document-level
+// outside-click closer below — which also means that closer never gets a
+// chance to close any *other* open dropdown when one of these is tapped.
+// Call this at the top of each button's handler to close the rest first.
+function closeOtherDropdowns(exceptId) {
+  ['notifDropdown', 'accountDropdown', 'journalFilterDropdown', 'backlogFilterDropdown']
+    .filter((id) => id !== exceptId)
+    .forEach((id) => el(id).classList.add('hidden'));
+  updateFilterScrim();
+}
+
 el('accountBtn').addEventListener('click', (e) => {
   e.stopPropagation();
+  closeOtherDropdowns('accountDropdown');
   el('accountDropdown').classList.toggle('hidden');
 });
 
 el('notifBtn').addEventListener('click', (e) => {
   e.stopPropagation();
+  closeOtherDropdowns('notifDropdown');
   const dropdown = el('notifDropdown');
   const opening = dropdown.classList.contains('hidden');
   dropdown.classList.toggle('hidden');
@@ -1113,6 +1127,7 @@ function renderBacklogFilterDropdown() {
 
 el('backlogFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
+  closeOtherDropdowns('backlogFilterDropdown');
   renderBacklogFilterDropdown();
   el('backlogFilterDropdown').classList.toggle('hidden');
   syncFilterUI('backlog');
@@ -1190,6 +1205,7 @@ function renderJournalFilterDropdown() {
 
 el('journalFilterBtn').addEventListener('click', (e) => {
   e.stopPropagation();
+  closeOtherDropdowns('journalFilterDropdown');
   renderJournalFilterDropdown();
   el('journalFilterDropdown').classList.toggle('hidden');
   syncFilterUI('journal');
@@ -1260,12 +1276,17 @@ function closeModal() {
 }
 
 function openModalWithContent(innerHtml) {
+  const openedAt = Date.now();
   el('modalRoot').innerHTML = `
     <div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet glass-strong">${innerHtml}</div>
     </div>`;
   el('modalOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'modalOverlay') closeModal();
+    // Ignore backdrop clicks in the first moment after opening — a common
+    // real-world case is a modal swap after a network round trip (e.g.
+    // Mark as Watched -> review modal), where an impatient second tap can
+    // land on the new modal's backdrop and instantly, silently close it.
+    if (e.target.id === 'modalOverlay' && Date.now() - openedAt > 300) closeModal();
   });
 }
 
@@ -1855,14 +1876,22 @@ function openEditModal(item) {
   });
 }
 
+// A <input type="date"> value is a plain calendar date with no timezone —
+// encode/decode it via *local* midnight (not UTC) so the round trip is
+// lossless regardless of the browser's UTC offset. Everywhere this
+// timestamp gets displayed back (toLocaleDateString, getFullYear/getMonth)
+// already reads in local time, so a UTC-encoded midnight would land on the
+// wrong calendar day for about half the world's timezones.
 function dateInputValue(iso) {
-  return iso ? iso.slice(0, 10) : '';
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function dateInputToIso(value) {
   if (!value) return null;
   const [y, m, d] = value.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toISOString();
+  return new Date(y, m - 1, d).toISOString();
 }
 
 function openReviewModal(item) {

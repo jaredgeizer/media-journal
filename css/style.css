@@ -131,7 +131,10 @@ button, input, select, textarea {
   gap: 8px;
 }
 
-.account-menu { position: relative; }
+/* Same reasoning as .notif-menu below: above .tag-filter-wrap/.filter-scrim
+   so the account button stays clickable (and its dropdown visible) while a
+   filter dropdown is open, still below modals (50). */
+.account-menu { position: relative; z-index: 47; }
 
 .account-icon-btn {
   width: 36px;

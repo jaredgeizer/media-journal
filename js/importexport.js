@@ -13,12 +13,15 @@ const SHELF_STATUS = {
 };
 
 // Handles both 'YYYY/MM/DD' (Goodreads) and 'YYYY-MM-DD' (Letterboxd).
+// Local midnight, not UTC — see dateInputToIso() in app.js for why: a
+// plain calendar date with no timezone should round-trip through local
+// getters, or it lands on the wrong day for about half the world.
 function toIsoDate(dateStr) {
   if (!dateStr) return null;
   const parts = dateStr.trim().split(/[-/]/).map(Number);
   if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
   const [y, m, d] = parts;
-  return new Date(Date.UTC(y, m - 1, d)).toISOString();
+  return new Date(y, m - 1, d).toISOString();
 }
 
 function clampRating(raw) {
