@@ -1382,22 +1382,26 @@ function openModalWithContent(innerHtml) {
 }
 
 // ---------- Clean up Journal / Backlog ----------
-// Finds completed items missing a poster or a watched date, or backlog
-// items missing a poster — almost every item imported from Goodreads/
-// Fable/Letterboxd, since those exports never include a poster/description
-// and often omit a per-item finish date — and offers a one-click
-// auto-matched fix per item, without ever overwriting data that's already
-// there.
+// Finds completed items missing a poster, release date, or watched date, or
+// backlog items missing a poster or release date — almost every item
+// imported from Goodreads/Fable/Letterboxd, since those exports never
+// include a poster/description/release date and often omit a per-item
+// finish date, plus anything added before release_date tracking existed —
+// and offers a one-click auto-matched fix per item, without ever
+// overwriting data that's already there.
 
-// Journal items can be missing a poster or a watched date; Backlog items
-// have no watched date to speak of, so only a missing poster counts there.
+// Journal items can be missing a poster, release date, or watched date;
+// Backlog items have no watched date to speak of, so only poster/release
+// date count there.
 const CLEANUP_LABELS = {
-  completed: { title: 'Clean up Journal', gap: 'a poster or watched date', gapDone: 'a poster and a watched date' },
-  wishlist: { title: 'Clean up Backlog', gap: 'a poster', gapDone: 'a poster' },
+  completed: { title: 'Clean up Journal', gap: 'a poster, release date, or watched date', gapDone: 'a poster, release date, and watched date' },
+  wishlist: { title: 'Clean up Backlog', gap: 'a poster or release date', gapDone: 'a poster and release date' },
 };
 
 function cleanupCandidates(status) {
-  return items.filter((i) => i.status === status && (!i.poster_url || (status === 'completed' && !i.date_completed)));
+  return items.filter(
+    (i) => i.status === status && (!i.poster_url || !i.release_date || (status === 'completed' && !i.date_completed))
+  );
 }
 
 function bestCleanupMatch(item, results) {
@@ -1446,14 +1450,21 @@ async function applyCleanupDate(item, iso) {
   return updated;
 }
 
-function cleanupMatchSuggestionHtml(match) {
+// "Use this poster" only makes sense when a poster is actually one of this
+// row's gaps — a row that already has a poster and is only missing a
+// release date gets the more general "Use this match" instead.
+function cleanupMatchButtonLabel(needsPoster) {
+  return needsPoster ? 'Use this poster' : 'Use this match';
+}
+
+function cleanupMatchSuggestionHtml(match, needsPoster) {
   return `
     <div class="cleanup-match-suggestion">
       ${posterOrEmoji(match, 'cleanup-match-poster')}
       <div class="cleanup-match-info">
         <p class="cleanup-match-title">${escapeHtml(match.title)}${match.year ? ` <span class="cleanup-row-year">(${escapeHtml(match.year)})</span>` : ''}</p>
         <div class="cleanup-match-actions">
-          <button type="button" class="btn-primary btn-small" data-apply-match>Use this poster</button>
+          <button type="button" class="btn-primary btn-small" data-apply-match>${cleanupMatchButtonLabel(needsPoster)}</button>
           <button type="button" class="btn-ghost btn-small" data-skip-match>Not a match</button>
         </div>
       </div>
@@ -1483,27 +1494,35 @@ function maybeRemoveResolvedRow(item) {
   }
 }
 
-// Keeps the bulk "use all suggested posters" button's count/disabled state
+// Keeps the bulk "use all suggested matches" button's count/disabled state
 // in sync with however many rows currently have a match ready to apply.
 function updateCleanupApplyAllBtn() {
   const btn = el('cleanupApplyAllBtn');
   if (!btn) return;
   const count = document.querySelectorAll('.cleanup-row [data-apply-match]').length;
-  btn.textContent = count ? `Use all suggested posters (${count})` : 'Use all suggested posters';
+  btn.textContent = count ? `Use all suggested matches (${count})` : 'Use all suggested matches';
   btn.disabled = count === 0;
 }
 
-function wireCleanupMatchActions(slot, item, match) {
+// needsPoster/needsReleaseDate are this row's gaps *as of when the slot was
+// built* — used to decide whether applying the match actually closed every
+// gap it started with, rather than just checking poster_url (which stayed
+// true the whole time for a release-date-only row and would've removed the
+// slot immediately regardless of whether release_date ever got filled in).
+function wireCleanupMatchActions(slot, item, match, needsPoster, needsReleaseDate) {
   slot.querySelector('[data-apply-match]').addEventListener('click', async (e) => {
     e.target.disabled = true;
     const updated = await applyCleanupMatch(item, match);
     item = updated;
     const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
     if (row) row.querySelector('.cleanup-poster').outerHTML = posterOrEmoji(item, 'cleanup-poster');
-    if (updated.poster_url) {
+    const stillNeedsPoster = needsPoster && !updated.poster_url;
+    const stillNeedsReleaseDate = needsReleaseDate && !updated.release_date;
+    if (!stillNeedsPoster && !stillNeedsReleaseDate) {
       slot.remove();
     } else {
-      slot.innerHTML = `<p class="cleanup-no-match">That match didn't include a poster — <button type="button" class="link-btn" data-open-edit>edit manually</button>.</p>`;
+      const missing = stillNeedsPoster ? 'a poster' : 'a release date';
+      slot.innerHTML = `<p class="cleanup-no-match">That match didn't include ${missing} — <button type="button" class="link-btn" data-open-edit>edit manually</button>.</p>`;
       wireCleanupNoMatch(slot, item);
     }
     maybeRemoveResolvedRow(item);
@@ -1524,6 +1543,11 @@ function wireCleanupNoMatch(slot, item) {
 async function loadCleanupMatch(item) {
   const slot = document.querySelector(`.cleanup-row[data-item-id="${item.id}"] [data-match-slot]`);
   if (!slot) return;
+  // Captured now, before anything changes — these are the gaps this slot
+  // was actually built for, independent of whatever the item looks like by
+  // the time the match result comes back.
+  const needsPoster = !item.poster_url;
+  const needsReleaseDate = !item.release_date;
   let match = null;
   try {
     const { results } = await searchExternal(item.title, item.media_type);
@@ -1533,8 +1557,8 @@ async function loadCleanupMatch(item) {
   }
   if (!document.body.contains(slot)) return; // row was removed/resolved while the search was in flight
   if (match) {
-    slot.innerHTML = cleanupMatchSuggestionHtml(match);
-    wireCleanupMatchActions(slot, item, match);
+    slot.innerHTML = cleanupMatchSuggestionHtml(match, needsPoster);
+    wireCleanupMatchActions(slot, item, match, needsPoster, needsReleaseDate);
   } else {
     slot.innerHTML = cleanupNoMatchHtml();
     wireCleanupNoMatch(slot, item);
@@ -1544,6 +1568,7 @@ async function loadCleanupMatch(item) {
 
 function cleanupRowHtml(item) {
   const needsPoster = !item.poster_url;
+  const needsReleaseDate = !item.release_date;
   const needsDate = item.status === 'completed' && !item.date_completed;
   return `
     <div class="cleanup-row glass" data-item-id="${item.id}">
@@ -1560,7 +1585,7 @@ function cleanupRowHtml(item) {
             : ''
         }
         ${
-          needsPoster
+          needsPoster || needsReleaseDate
             ? `<div class="cleanup-match-slot" data-match-slot>${
                 SEARCHABLE_TYPES.includes(item.media_type)
                   ? '<p class="cleanup-match-loading">Searching for a match…</p>'
@@ -2002,7 +2027,7 @@ function openCleanupModal(status) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    ${candidates.length ? `<button type="button" class="btn-secondary" id="cleanupApplyAllBtn" style="width:100%;margin-bottom:14px;" disabled>Use all suggested posters</button>` : ''}
+    ${candidates.length ? `<button type="button" class="btn-secondary" id="cleanupApplyAllBtn" style="width:100%;margin-bottom:14px;" disabled>Use all suggested matches</button>` : ''}
     <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}" data-cleanup-gap="${escapeHtml(labels.gap)}">${candidates.map(cleanupRowHtml).join('')}</div>
     <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has ${labels.gapDone}.</p>
   `;
@@ -2033,7 +2058,7 @@ function openCleanupModal(status) {
     if (item) wireCleanupNoMatch(btn.closest('[data-match-slot]'), item);
   });
 
-  const searchable = candidates.filter((i) => !i.poster_url && SEARCHABLE_TYPES.includes(i.media_type));
+  const searchable = candidates.filter((i) => (!i.poster_url || !i.release_date) && SEARCHABLE_TYPES.includes(i.media_type));
   runWithConcurrency(searchable, 3, loadCleanupMatch);
 }
 
