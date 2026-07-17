@@ -4,6 +4,7 @@
 
 const DEMO_USER_ID = 'demo-user';
 const DEMO_KEY = 'mediaJournal.demo.items';
+const DEMO_GOALS_KEY = 'mediaJournal.demo.goals';
 
 function isConfigured(cfg) {
   return (
@@ -29,6 +30,18 @@ function readDemoItems() {
 
 function writeDemoItems(items) {
   localStorage.setItem(DEMO_KEY, JSON.stringify(items));
+}
+
+function readDemoGoals() {
+  try {
+    return JSON.parse(localStorage.getItem(DEMO_GOALS_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDemoGoals(goals) {
+  localStorage.setItem(DEMO_GOALS_KEY, JSON.stringify(goals));
 }
 
 class DemoStore {
@@ -120,6 +133,23 @@ class DemoStore {
     }));
     writeDemoItems([...items, ...added]);
     return added;
+  }
+
+  async listGoals() {
+    return readDemoGoals();
+  }
+
+  async upsertGoal(year, media_type, target) {
+    const goals = readDemoGoals();
+    const idx = goals.findIndex((g) => g.year === year && g.media_type === media_type);
+    const now = new Date().toISOString();
+    if (idx !== -1) {
+      goals[idx] = { ...goals[idx], target, updated_at: now };
+    } else {
+      goals.push({ id: uuid(), user_id: DEMO_USER_ID, year, media_type, target, created_at: now, updated_at: now });
+    }
+    writeDemoGoals(goals);
+    return goals.find((g) => g.year === year && g.media_type === media_type);
   }
 }
 
@@ -213,6 +243,24 @@ class SupabaseStore {
       added.push(...data);
     }
     return added;
+  }
+
+  async listGoals() {
+    const { data, error } = await this.client.from('goals').select('*');
+    if (error) throw error;
+    return data;
+  }
+
+  async upsertGoal(year, media_type, target) {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client
+      .from('goals')
+      .upsert({ user_id, year, media_type, target }, { onConflict: 'user_id,year,media_type' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 }
 

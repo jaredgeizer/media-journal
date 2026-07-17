@@ -4,6 +4,20 @@ import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibr
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
+// Account page pie chart — fixed hue-per-type (see the --type-* custom
+// properties in style.css for the validated light/dark hex values and why
+// 'other' isn't a categorical slot).
+const TYPE_COLOR = {
+  movie: 'var(--type-movie)',
+  tv: 'var(--type-tv)',
+  book: 'var(--type-book)',
+  podcast: 'var(--type-podcast)',
+  album: 'var(--type-album)',
+  game: 'var(--type-game)',
+  play: 'var(--type-play)',
+  restaurant: 'var(--type-restaurant)',
+  other: 'var(--type-other)',
+};
 const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', musicbrainz: 'View on MusicBrainz', google_books: 'View on Google Books' };
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', album: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
 const START_LABEL = { book: 'Start Reading', tv: 'Start Watching', game: 'Start Playing' };
@@ -1545,10 +1559,79 @@ function accountStatsHtml(year) {
     </div>`;
 }
 
+// Pure-CSS pie (conic-gradient) + legend, visualizing the exact same
+// per-type counts as accountStatsHtml() above for the same selected year —
+// no separate year concept here. Colors come from the fixed TYPE_COLOR
+// mapping (see its comment) so a type's slice color never changes based on
+// what else happens to be present that year.
+function accountPieChartHtml(year) {
+  const stats = accountStatsForYear(year);
+  if (!stats.length) return '';
+  const total = stats.reduce((sum, s) => sum + s.count, 0);
+  let cumulative = 0;
+  const stops = stats
+    .map((s) => {
+      const from = (cumulative / total) * 100;
+      cumulative += s.count;
+      const to = (cumulative / total) * 100;
+      const color = TYPE_COLOR[s.type] || TYPE_COLOR.other;
+      return `${color} ${from}% ${to}%`;
+    })
+    .join(', ');
+  return `
+    <div class="account-pie-wrap">
+      <div class="account-pie" style="background: conic-gradient(${stops})"></div>
+      <div class="account-pie-legend">
+        ${stats
+          .map(
+            (s) => `
+          <div class="account-stats-row">
+            <span><span class="account-pie-swatch" style="background:${TYPE_COLOR[s.type] || TYPE_COLOR.other}"></span>${escapeHtml(s.label)}</span>
+            <span class="account-stats-count">${s.count}</span>
+          </div>`
+          )
+          .join('')}
+      </div>
+    </div>`;
+}
+
+// Count of completed items of one media type in one year — the reading
+// goal's progress bar is always just this, computed fresh, never a stored
+// counter. That's what makes "already marked as watched" and "automatically
+// updated" both true for free: nothing to backfill, nothing to increment.
+function completedCountForYear(year, mediaType) {
+  return items.filter(
+    (i) => i.media_type === mediaType && i.status === 'completed' && i.date_completed && new Date(i.date_completed).getFullYear() === year
+  ).length;
+}
+
+// Goals only ever make sense for the current year or — starting 3 weeks
+// out — next year, so you can plan ahead before the calendar flips. Local
+// midnight, not UTC (see dateInputToIso()'s reasoning): a plain calendar-day
+// countdown shouldn't be timezone-shifted by a few hours near the boundary.
+function nextYearGoalEligible() {
+  const now = new Date();
+  const nextJan1 = new Date(now.getFullYear() + 1, 0, 1);
+  return Math.ceil((nextJan1 - now) / (24 * 60 * 60 * 1000)) <= 21;
+}
+
+function goalProgressHtml(target, count) {
+  if (!target) {
+    return `<p class="empty-state">Set a goal above to start tracking your progress.</p>`;
+  }
+  const pct = Math.min(100, Math.round((count / target) * 100));
+  return `
+    <div class="goal-progress-label"><span>${count} of ${target} books</span><span>${pct}%</span></div>
+    <div class="goal-progress-track"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
+  `;
+}
+
 // Renders straight into the #tab-account page (not a modal) — called each
 // time the Account item is opened, so it's always built from the current
-// in-memory items/user state.
-function renderAccountPage() {
+// in-memory items/user state. Async only for the goal section (a tiny,
+// rarely-changing dataset loaded fresh on each visit rather than at app
+// boot, since nothing outside this page ever needs it).
+async function renderAccountPage() {
   const nameLabel = store.mode === 'demo' ? 'Demo Mode' : (currentUser && currentUser.email) || '';
   const years = accountYearOptions();
   const currentYear = new Date().getFullYear();
@@ -1559,6 +1642,7 @@ function renderAccountPage() {
     <option value="all">All Years</option>
   `;
   el('accountStats').innerHTML = accountStatsHtml(currentYear);
+  el('accountPieChart').innerHTML = accountPieChartHtml(currentYear);
 
   // .onchange (not addEventListener) — this select is a static page element
   // that persists across visits, so re-rendering the page must replace the
@@ -1566,7 +1650,50 @@ function renderAccountPage() {
   el('accountYearSelect').onchange = (e) => {
     const year = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
     el('accountStats').innerHTML = accountStatsHtml(year);
+    el('accountPieChart').innerHTML = accountPieChartHtml(year);
   };
+
+  // ---- Reading goal (books only, for now) ----
+  const goals = await store.listGoals();
+  const nextYear = currentYear + 1;
+
+  function renderGoalYear(year) {
+    const goal = goals.find((g) => g.year === year && g.media_type === 'book');
+    el('goalYearLabel').textContent = year;
+    el('goalTargetInput').value = goal ? goal.target : '';
+    el('goalProgress').innerHTML = goalProgressHtml(goal ? goal.target : null, completedCountForYear(year, 'book'));
+
+    el('goalTargetInput').onchange = async (e) => {
+      const value = parseInt(e.target.value, 10);
+      if (!value || value < 1) {
+        renderGoalYear(year); // invalid entry — revert to the last saved state
+        return;
+      }
+      const updated = await store.upsertGoal(year, 'book', value);
+      const idx = goals.findIndex((g) => g.year === year && g.media_type === 'book');
+      if (idx !== -1) goals[idx] = updated;
+      else goals.push(updated);
+      renderGoalYear(year); // re-render from the saved state (also re-attaches this handler cleanly)
+    };
+  }
+
+  const toggle = el('goalYearToggle');
+  if (nextYearGoalEligible()) {
+    toggle.classList.remove('hidden');
+    toggle.innerHTML = `
+      <button type="button" class="chip active" data-value="${currentYear}">This Year</button>
+      <button type="button" class="chip" data-value="${nextYear}">Next Year</button>
+    `;
+    toggle.dataset.value = String(currentYear);
+    wireChipGroup('goalYearToggle', () => {
+      renderGoalYear(parseInt(toggle.dataset.value, 10));
+    });
+  } else {
+    toggle.classList.add('hidden');
+    toggle.innerHTML = '';
+  }
+
+  renderGoalYear(currentYear);
 }
 
 function openCleanupModal(status) {

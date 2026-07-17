@@ -50,6 +50,14 @@ you next open the app) and again on/shortly after release day. The 5 most
 recent notifications stay listed even after you've seen them — opening
 the bell just clears the unread dot. Tapping one opens that item.
 
+The account icon's **Account** page shows a year picker with your
+totals per media type for that year (or **All Years**), a visual
+breakdown as a pie chart, and a yearly reading goal — set how many
+books you want to read, and the progress bar fills in automatically
+from books you've marked read that year, including ones you'd already
+logged before setting the goal. Starting 3 weeks before January 1st,
+you can also set next year's goal ahead of time.
+
 ## Running it locally (Demo Mode)
 
 No setup required. Just serve the folder and open it in a browser:
@@ -114,6 +122,38 @@ alter table public.items add column if not exists notified_season_at timestamptz
 alter table public.items add column if not exists notified_release_soon_at timestamptz;
 alter table public.items add column if not exists notified_release_soon_days smallint;
 alter table public.items add column if not exists notified_release_day_at timestamptz;
+```
+
+There's also a new `goals` table (used by the Account page's yearly
+reading goal) — this one's a separate block since it creates a whole
+table rather than altering `items`. Safe to run on its own, any time,
+regardless of which of the `items` statements above you've already run:
+
+```sql
+create table if not exists public.goals (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  year       smallint not null,
+  media_type text not null,
+  target     smallint not null check (target > 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, year, media_type)
+);
+create index if not exists goals_user_id_idx on public.goals (user_id);
+drop trigger if exists goals_set_updated_at on public.goals;
+create trigger goals_set_updated_at
+  before update on public.goals
+  for each row execute function public.set_updated_at();
+alter table public.goals enable row level security;
+drop policy if exists "Users can view their own goals" on public.goals;
+create policy "Users can view their own goals" on public.goals for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own goals" on public.goals;
+create policy "Users can insert their own goals" on public.goals for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own goals" on public.goals;
+create policy "Users can update their own goals" on public.goals for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own goals" on public.goals;
+create policy "Users can delete their own goals" on public.goals for delete using (auth.uid() = user_id);
 ```
 
 ## Setting up movie & TV search (TMDb)

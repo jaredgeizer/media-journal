@@ -89,3 +89,48 @@ drop policy if exists "Users can delete their own items" on public.items;
 create policy "Users can delete their own items"
   on public.items for delete
   using (auth.uid() = user_id);
+
+-- Yearly goals (e.g. "12 books in 2026") — one row per user/year/media_type,
+-- so a future goal for another media type is just a new row, no migration
+-- needed. Progress itself isn't stored here; the app derives it from items
+-- (count of that media_type completed in that year) every time it renders.
+create table if not exists public.goals (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  year       smallint not null,
+  media_type text not null,
+  target     smallint not null check (target > 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, year, media_type)
+);
+
+create index if not exists goals_user_id_idx on public.goals (user_id);
+
+drop trigger if exists goals_set_updated_at on public.goals;
+create trigger goals_set_updated_at
+  before update on public.goals
+  for each row execute function public.set_updated_at();
+
+alter table public.goals enable row level security;
+
+drop policy if exists "Users can view their own goals" on public.goals;
+create policy "Users can view their own goals"
+  on public.goals for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert their own goals" on public.goals;
+create policy "Users can insert their own goals"
+  on public.goals for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own goals" on public.goals;
+create policy "Users can update their own goals"
+  on public.goals for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own goals" on public.goals;
+create policy "Users can delete their own goals"
+  on public.goals for delete
+  using (auth.uid() = user_id);

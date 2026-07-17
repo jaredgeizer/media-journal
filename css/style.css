@@ -25,6 +25,22 @@
   --danger: #ff3b30;
   --star-on: #ffb020;
   --star-off: rgba(60, 60, 67, 0.25);
+
+  /* Categorical palette for the Account page's media-type pie chart — fixed
+     hue-per-type assignment (never reassigned based on which types happen to
+     be present), validated for CVD/contrast via the dataviz skill's
+     validator. 'other' deliberately isn't a categorical slot — it's the
+     catch-all "fold in" bucket the palette's own rule calls for beyond 8
+     series, so it gets the neutral muted-ink color instead. */
+  --type-movie: #2a78d6;
+  --type-tv: #008300;
+  --type-book: #e87ba4;
+  --type-podcast: #eda100;
+  --type-album: #1baf7a;
+  --type-game: #eb6834;
+  --type-play: #4a3aa7;
+  --type-restaurant: #e34948;
+  --type-other: #898781;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +56,13 @@
     --page-bg-rgb: 0, 0, 0;
     --divider: rgba(255, 255, 255, 0.12);
     --star-off: rgba(235, 235, 245, 0.3);
+    --type-movie: #3987e5;
+    --type-book: #d55181;
+    --type-podcast: #c98500;
+    --type-album: #199e70;
+    --type-game: #d95926;
+    --type-play: #9085e9;
+    --type-restaurant: #e66767;
   }
 }
 
@@ -51,6 +74,13 @@
   --text-secondary: rgba(60, 60, 67, 0.75);
   --page-bg: #f1f1f1;
   --page-bg-rgb: 241, 241, 241;
+  --type-movie: #2a78d6;
+  --type-book: #e87ba4;
+  --type-podcast: #eda100;
+  --type-album: #1baf7a;
+  --type-game: #eb6834;
+  --type-play: #4a3aa7;
+  --type-restaurant: #e34948;
 }
 
 :root[data-theme="dark"] {
@@ -61,6 +91,13 @@
   --text-secondary: rgba(235, 235, 245, 0.72);
   --page-bg: #000000;
   --page-bg-rgb: 0, 0, 0;
+  --type-movie: #3987e5;
+  --type-book: #d55181;
+  --type-podcast: #c98500;
+  --type-album: #199e70;
+  --type-game: #d95926;
+  --type-play: #9085e9;
+  --type-restaurant: #e66767;
 }
 
 * { box-sizing: border-box; }
@@ -1206,6 +1243,60 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 }
 
 .account-stats-count { color: var(--text-secondary); }
+
+.goal-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.goal-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.16);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(var(--accent), 0.9);
+  transition: width 0.3s ease;
+}
+
+.account-pie-wrap {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.account-pie {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.account-pie-legend {
+  flex: 1;
+  min-width: 160px;
+}
+
+.account-pie-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
 
 .notice {
   border-radius: var(--radius-sm);
