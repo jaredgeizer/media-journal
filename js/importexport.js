@@ -155,16 +155,29 @@ export async function parseLetterboxdZip(arrayBuffer) {
 
 // Shared by dedupeAgainstLibrary() below and findLibraryMatch() in app.js.
 // External IDs are only trusted as a match/mismatch signal when *both*
-// sides have one — different real IDs (e.g. two different TMDb movies that
-// happen to share a title, like an animated original and a live-action
-// remake) must never fall through to the title-only comparison. When one or
-// both sides lack an external ID (manual entries, older CSV imports),
+// sides have one *from the same source* — different real IDs from the same
+// system (e.g. two different TMDb movies that happen to share a title, like
+// an animated original and a live-action remake) must never fall through to
+// the title-only comparison. But two different systems assign completely
+// unrelated ID schemes to the same real-world item — a movie imported from
+// Letterboxd (external_source 'letterboxd', a Letterboxd URI as the id) and
+// the same movie found via TMDb search (external_source 'tmdb', a numeric
+// id) both have *an* external id, just never a comparable one, so that pair
+// must fall through to the title comparison instead of being declared "not
+// a match" by comparing IDs from two unrelated systems. When one or both
+// sides lack an external ID at all (manual entries, older CSV imports),
 // fall back to title + media type, additionally requiring the year to
 // match when both sides have one, so same-title/different-year titles
 // don't collide even without external IDs to disambiguate them.
 export function matchesLibraryItem(candidate, libraryItem) {
-  if (candidate.external_id && candidate.external_source && libraryItem.external_id && libraryItem.external_source) {
-    return libraryItem.external_id === candidate.external_id && libraryItem.external_source === candidate.external_source;
+  if (
+    candidate.external_id &&
+    candidate.external_source &&
+    libraryItem.external_id &&
+    libraryItem.external_source &&
+    candidate.external_source === libraryItem.external_source
+  ) {
+    return libraryItem.external_id === candidate.external_id;
   }
   if (libraryItem.media_type !== candidate.media_type) return false;
   if (libraryItem.title.trim().toLowerCase() !== (candidate.title || '').trim().toLowerCase()) return false;
