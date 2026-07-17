@@ -705,6 +705,13 @@ main {
   color: var(--text-primary);
 }
 
+.account-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 4px 0 20px;
+  color: var(--text-primary);
+}
+
 .progress-badge {
   font-size: 12px;
   font-weight: 600;

@@ -203,7 +203,8 @@ el('notifBtn').addEventListener('click', (e) => {
 
 el('accountStatsBtn').addEventListener('click', () => {
   el('accountDropdown').classList.add('hidden');
-  openAccountModal();
+  switchTab('account');
+  renderAccountPage();
 });
 
 el('importExportBtn').addEventListener('click', () => {
@@ -1544,35 +1545,28 @@ function accountStatsHtml(year) {
     </div>`;
 }
 
-function openAccountModal() {
+// Renders straight into the #tab-account page (not a modal) — called each
+// time the Account item is opened, so it's always built from the current
+// in-memory items/user state.
+function renderAccountPage() {
   const nameLabel = store.mode === 'demo' ? 'Demo Mode' : (currentUser && currentUser.email) || '';
   const years = accountYearOptions();
   const currentYear = new Date().getFullYear();
 
-  const html = `
-    <div class="modal-header">
-      <div style="flex:1">
-        <p class="modal-title">Account</p>
-        <p class="modal-subtitle">${escapeHtml(nameLabel)}</p>
-      </div>
-      <button class="modal-close" id="modalCloseBtn">✕</button>
-    </div>
-    <div class="field">
-      <label for="accountYearSelect">Year</label>
-      <select id="accountYearSelect">
-        ${years.map((y) => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('')}
-        <option value="all">All Years</option>
-      </select>
-    </div>
-    <div id="accountStats">${accountStatsHtml(currentYear)}</div>
+  el('accountPageTitle').textContent = nameLabel;
+  el('accountYearSelect').innerHTML = `
+    ${years.map((y) => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('')}
+    <option value="all">All Years</option>
   `;
-  openModalWithContent(html);
-  el('modalCloseBtn').addEventListener('click', closeModal);
+  el('accountStats').innerHTML = accountStatsHtml(currentYear);
 
-  el('accountYearSelect').addEventListener('change', (e) => {
+  // .onchange (not addEventListener) — this select is a static page element
+  // that persists across visits, so re-rendering the page must replace the
+  // handler rather than stacking a new one on top each time.
+  el('accountYearSelect').onchange = (e) => {
     const year = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
     el('accountStats').innerHTML = accountStatsHtml(year);
-  });
+  };
 }
 
 function openCleanupModal(status) {
