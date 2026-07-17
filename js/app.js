@@ -403,6 +403,15 @@ function modalDateLabel(item) {
   return item.year || null;
 }
 
+// Whether release_date actually resolves to a displayable month (same test
+// modalDateLabel() above uses) — not just whether the field is non-empty.
+// A month-less value (e.g. a bare year from a less-cataloged source) is
+// "present" but still needs the same fix as a missing one, so Clean Up's
+// gap-detection uses this rather than a plain truthiness check.
+function hasReleaseMonth(item) {
+  return /^\d{4}-\d{2}/.test(item.release_date || '');
+}
+
 function externalLinkHtml(item) {
   const label = EXTERNAL_LINK_LABEL[item.external_source];
   if (!label || !item.external_url) return '';
@@ -1400,7 +1409,7 @@ const CLEANUP_LABELS = {
 
 function cleanupCandidates(status) {
   return items.filter(
-    (i) => i.status === status && (!i.poster_url || !i.release_date || (status === 'completed' && !i.date_completed))
+    (i) => i.status === status && (!i.poster_url || !hasReleaseMonth(i) || (status === 'completed' && !i.date_completed))
   );
 }
 
@@ -1432,7 +1441,7 @@ async function applyCleanupMatch(item, match) {
   if (!item.description && match.description) patch.description = match.description;
   if (!item.year && match.year) patch.year = match.year;
   if (!item.creator && match.creator) patch.creator = match.creator;
-  if (!item.release_date && match.release_date) patch.release_date = match.release_date;
+  if (!hasReleaseMonth(item) && hasReleaseMonth(match)) patch.release_date = match.release_date;
   const updated = await store.updateItem(item.id, patch);
   const idx = items.findIndex((i) => i.id === item.id);
   if (idx !== -1) items[idx] = updated;
@@ -1517,7 +1526,7 @@ function wireCleanupMatchActions(slot, item, match, needsPoster, needsReleaseDat
     const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
     if (row) row.querySelector('.cleanup-poster').outerHTML = posterOrEmoji(item, 'cleanup-poster');
     const stillNeedsPoster = needsPoster && !updated.poster_url;
-    const stillNeedsReleaseDate = needsReleaseDate && !updated.release_date;
+    const stillNeedsReleaseDate = needsReleaseDate && !hasReleaseMonth(updated);
     if (!stillNeedsPoster && !stillNeedsReleaseDate) {
       slot.remove();
     } else {
@@ -1547,7 +1556,7 @@ async function loadCleanupMatch(item) {
   // was actually built for, independent of whatever the item looks like by
   // the time the match result comes back.
   const needsPoster = !item.poster_url;
-  const needsReleaseDate = !item.release_date;
+  const needsReleaseDate = !hasReleaseMonth(item);
   let match = null;
   try {
     const { results } = await searchExternal(item.title, item.media_type);
@@ -1568,7 +1577,7 @@ async function loadCleanupMatch(item) {
 
 function cleanupRowHtml(item) {
   const needsPoster = !item.poster_url;
-  const needsReleaseDate = !item.release_date;
+  const needsReleaseDate = !hasReleaseMonth(item);
   const needsDate = item.status === 'completed' && !item.date_completed;
   return `
     <div class="cleanup-row glass" data-item-id="${item.id}">
@@ -2058,7 +2067,7 @@ function openCleanupModal(status) {
     if (item) wireCleanupNoMatch(btn.closest('[data-match-slot]'), item);
   });
 
-  const searchable = candidates.filter((i) => (!i.poster_url || !i.release_date) && SEARCHABLE_TYPES.includes(i.media_type));
+  const searchable = candidates.filter((i) => (!i.poster_url || !hasReleaseMonth(i)) && SEARCHABLE_TYPES.includes(i.media_type));
   runWithConcurrency(searchable, 3, loadCleanupMatch);
 }
 
