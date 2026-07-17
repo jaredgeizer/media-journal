@@ -1407,6 +1407,15 @@ const CLEANUP_LABELS = {
   wishlist: { title: 'Clean up Backlog', gap: 'a poster or release date', gapDone: 'a poster and release date' },
 };
 
+// A missing release date now counts as a gap too, which — for anyone whose
+// library predates that tracking — can mean most or all of it qualifies at
+// once. Rendering hundreds of rows (each with a poster) and firing that
+// many concurrent searches has been enough to crash the tab on mobile
+// Safari, so each run only processes a bounded batch; resolving those and
+// reopening Clean Up picks up the next batch (already-resolved items no
+// longer match cleanupCandidates(), so nothing repeats).
+const CLEANUP_BATCH_SIZE = 40;
+
 function cleanupCandidates(status) {
   return items.filter(
     (i) => i.status === status && (!i.poster_url || !hasReleaseMonth(i) || (status === 'completed' && !i.date_completed))
@@ -1488,19 +1497,34 @@ function cleanupNoMatchHtml() {
 // left in it), drop it from the list so the modal visibly shrinks as items
 // get fixed — checked against the row's own remaining fields rather than
 // the item's, since Backlog rows never had a date field to begin with.
+// The true remaining count is recomputed from cleanupCandidates() (not just
+// the rows still on screen), since only a bounded batch is ever rendered —
+// see CLEANUP_BATCH_SIZE — so there can be more still waiting than what's
+// currently visible.
 function maybeRemoveResolvedRow(item) {
   const row = document.querySelector(`.cleanup-row[data-item-id="${item.id}"]`);
   if (row && !row.querySelector('.cleanup-date-field') && !row.querySelector('[data-match-slot]')) {
     row.remove();
   }
   const list = el('cleanupList');
-  const remaining = list.children.length;
+  const shown = list.children.length;
+  const status = list.dataset.cleanupStatus;
   const gap = list.dataset.cleanupGap;
-  el('cleanupSubtitle').textContent = remaining ? `${remaining} item${remaining === 1 ? '' : 's'} missing ${gap}.` : 'All caught up!';
-  if (!remaining) {
-    list.classList.add('hidden');
-    el('cleanupAllDone').classList.remove('hidden');
+  const gapDone = list.dataset.cleanupGapDone;
+  const total = cleanupCandidates(status).length;
+  if (shown > 0) {
+    el('cleanupSubtitle').textContent =
+      total > shown
+        ? `Showing ${shown} of ${total} items missing ${gap} — resolve these, then reopen to see more.`
+        : `${shown} item${shown === 1 ? '' : 's'} missing ${gap}.`;
+    return;
   }
+  list.classList.add('hidden');
+  el('cleanupAllDone').textContent =
+    total > 0
+      ? `This batch is done — ${total} more item${total === 1 ? '' : 's'} still ${total === 1 ? 'needs' : 'need'} ${gap}. Reopen Clean Up to continue.`
+      : `Nothing to clean up — every entry has ${gapDone}.`;
+  el('cleanupAllDone').classList.remove('hidden');
 }
 
 // Keeps the bulk "use all suggested matches" button's count/disabled state
@@ -2027,17 +2051,22 @@ async function renderAccountPage() {
 
 function openCleanupModal(status) {
   const labels = CLEANUP_LABELS[status];
-  const candidates = cleanupCandidates(status);
+  const allCandidates = cleanupCandidates(status);
+  const candidates = allCandidates.slice(0, CLEANUP_BATCH_SIZE);
+  const subtitleText =
+    allCandidates.length > candidates.length
+      ? `Showing ${candidates.length} of ${allCandidates.length} items missing ${labels.gap} — resolve these, then reopen to see more.`
+      : `${allCandidates.length} item${allCandidates.length === 1 ? '' : 's'} missing ${labels.gap}.`;
   const html = `
     <div class="modal-header">
       <div style="flex:1">
         <p class="modal-title">${labels.title}</p>
-        <p class="modal-subtitle" id="cleanupSubtitle">${candidates.length} item${candidates.length === 1 ? '' : 's'} missing ${labels.gap}.</p>
+        <p class="modal-subtitle" id="cleanupSubtitle">${subtitleText}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
     ${candidates.length ? `<button type="button" class="btn-secondary" id="cleanupApplyAllBtn" style="width:100%;margin-bottom:14px;" disabled>Use all suggested matches</button>` : ''}
-    <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}" data-cleanup-gap="${escapeHtml(labels.gap)}">${candidates.map(cleanupRowHtml).join('')}</div>
+    <div id="cleanupList" class="cleanup-list${candidates.length ? '' : ' hidden'}" data-cleanup-status="${status}" data-cleanup-gap="${escapeHtml(labels.gap)}" data-cleanup-gap-done="${escapeHtml(labels.gapDone)}">${candidates.map(cleanupRowHtml).join('')}</div>
     <p id="cleanupAllDone" class="empty-state${candidates.length ? ' hidden' : ''}">Nothing to clean up — every entry has ${labels.gapDone}.</p>
   `;
   openModalWithContent(html);
