@@ -147,6 +147,7 @@ async function searchTV(query) {
     title: r.name,
     creator: null,
     year: (r.first_air_date || '').slice(0, 4) || null,
+    release_date: r.first_air_date || null,
     poster_url: r.poster_path ? TMDB_IMG + r.poster_path : null,
     description: r.overview || null,
     external_source: 'tmdb',
@@ -181,6 +182,7 @@ async function searchBooks(query) {
       title: v.title,
       creator: (v.authors || []).join(', ') || null,
       year: (v.publishedDate || '').slice(0, 4) || null,
+      release_date: v.publishedDate || null,
       poster_url: thumb ? thumb.replace(/^http:/, 'https:') : null,
       description: v.description || null,
       external_source: 'google_books',
@@ -201,6 +203,7 @@ async function searchPodcasts(query) {
     title: r.collectionName || r.trackName,
     creator: r.artistName || null,
     year: (r.releaseDate || '').slice(0, 4) || null,
+    release_date: r.releaseDate || null,
     poster_url: r.artworkUrl100 ? r.artworkUrl100.replace('100x100', '600x600') : null,
     description: r.primaryGenreName ? `${r.primaryGenreName} podcast` : null,
     external_source: 'itunes',
@@ -225,6 +228,7 @@ async function searchAlbums(query) {
     title: r.title,
     creator: (r['artist-credit'] || []).map((a) => a.name).join(', ') || null,
     year: (r['first-release-date'] || '').slice(0, 4) || null,
+    release_date: r['first-release-date'] || null,
     // Cover art isn't in the release-group response — MusicBrainz's
     // companion Cover Art Archive serves it at a predictable per-MBID URL
     // instead of needing an extra fetch per result. Not every release group
@@ -262,6 +266,7 @@ async function searchGames(query) {
       title: r.name,
       creator: null,
       year: (r.released || '').slice(0, 4) || null,
+      release_date: r.released || null,
       poster_url: r.background_image || null,
       description: genres || null,
       external_source: 'rawg',

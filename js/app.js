@@ -41,6 +41,13 @@ const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
 const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season'];
+// New Season only ever means anything for a TV show cycling back to
+// Backlog (see checkForNewTvSeasons()) — offering it as a pickable tag on
+// a movie/book/etc. would just be confusing, so it's excluded from the
+// edit modal's tag chips for every other media type.
+function backlogTagsFor(mediaType) {
+  return mediaType === 'tv' ? BACKLOG_TAGS : BACKLOG_TAGS.filter((t) => t !== '🆕 New Season');
+}
 const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'];
 const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
 
@@ -191,7 +198,7 @@ async function loadItems() {
   // Not awaited — these make their own network/storage calls and shouldn't
   // delay first paint; each re-renders itself once done.
   checkForNewTvSeasons();
-  checkForUpcomingMovies();
+  checkForUpcomingReleases();
 }
 
 el('signOutBtn').addEventListener('click', async () => {
@@ -380,6 +387,22 @@ function metaLine(item) {
   return [escapeHtml(item.creator), escapeHtml(item.year)].filter(Boolean).join(' · ');
 }
 
+// Modals show month + year when the full release date is known (not the
+// day — cards stay year-only, see metaLine() above). Parsed as plain
+// string components rather than through a Date object: release_date is a
+// bare calendar date (no timezone of its own), and asking a UTC-parsed
+// Date for its *local* month can roll a date near a month boundary into
+// the wrong month depending on the viewer's timezone — the same class of
+// bug dateInputToIso()/dateInputValue() already avoid for date pickers.
+function modalDateLabel(item) {
+  const match = /^(\d{4})-(\d{2})/.exec(item.release_date || '');
+  if (match) {
+    const monthIdx = parseInt(match[2], 10) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) return `${MONTH_NAMES[monthIdx]} ${match[1]}`;
+  }
+  return item.year || null;
+}
+
 function externalLinkHtml(item) {
   const label = EXTERNAL_LINK_LABEL[item.external_source];
   if (!label || !item.external_url) return '';
@@ -566,18 +589,24 @@ async function checkForNewTvSeasons() {
   }
 }
 
-// Backlog movies get a "coming soon" heads-up once, the first time the app
-// is opened with 0-7 days left before release — the displayed day-count is
-// frozen at that moment (notified_release_soon_days), not recomputed on
-// later views — and a separate "out now" heads-up once, the first time the
-// app is opened on or shortly after release day. Both use a -7..0 day
-// grace window on the "day of" side so opening the app a few days late
-// still notifies, without misfiring on old movies added long after their
-// actual release (no window on the far side would never fire at all).
-async function checkForUpcomingMovies() {
+// Backlog movies and games get a "coming soon" heads-up once, the first
+// time the app is opened with 0-7 days left before release — the displayed
+// day-count is frozen at that moment (notified_release_soon_days), not
+// recomputed on later views — and a separate "out now" heads-up once, the
+// first time the app is opened on or shortly after release day. Both use a
+// -7..0 day grace window on the "day of" side so opening the app a few
+// days late still notifies, without misfiring on old items added long
+// after their actual release (no window on the far side would never fire
+// at all). TV isn't included here — a show's own premiere uses this same
+// release_date/notified_release_* machinery too, but "new season" is the
+// notification that matters for shows already in Backlog/Journal, handled
+// separately by checkForNewTvSeasons() above.
+const RELEASE_NOTIFICATION_TYPES = ['movie', 'game'];
+
+async function checkForUpcomingReleases() {
   const candidates = items.filter(
     (i) =>
-      i.media_type === 'movie' &&
+      RELEASE_NOTIFICATION_TYPES.includes(i.media_type) &&
       i.status === 'wishlist' &&
       i.release_date &&
       (!i.notified_release_soon_at || !i.notified_release_day_at)
@@ -603,7 +632,7 @@ async function checkForUpcomingMovies() {
     } catch (err) {
       // Same reasoning as checkForNewTvSeasons(): fire-and-forget, no UI to
       // surface an error into, so one bad write shouldn't kill the batch.
-      console.warn('checkForUpcomingMovies: failed to update', item.id, err);
+      console.warn('checkForUpcomingReleases: failed to update', item.id, err);
     }
   }
   if (changed) {
@@ -760,17 +789,29 @@ function effectiveCompletedDate(item) {
   return item.date_completed ? new Date(item.date_completed).getTime() : NO_DATE_SENTINEL;
 }
 
+// Sorting "by release date" has to use the actual release_date, not just
+// itemYear() — comparing years alone left same-year items (e.g. two movies
+// both from 2024) in an arbitrary order instead of chronological. Falls
+// back to January 1st of the known year when release_date isn't populated
+// (older items added before it was tracked for their type), and to the
+// same undated sentinel as completed-date sorting when neither is known.
+function effectiveReleaseDate(item) {
+  if (item.release_date) return new Date(item.release_date).getTime();
+  const y = itemYear(item);
+  return y ? new Date(y, 0, 1).getTime() : NO_DATE_SENTINEL;
+}
+
 const JOURNAL_SORTS = {
   completed_desc: { label: 'Date completed, newest first', cmp: (a, b) => effectiveCompletedDate(b) - effectiveCompletedDate(a) },
   completed_asc: { label: 'Date completed, oldest first', cmp: (a, b) => effectiveCompletedDate(a) - effectiveCompletedDate(b) },
-  release_desc: { label: 'Release date, newest first', cmp: (a, b) => (itemYear(b) || 0) - (itemYear(a) || 0) },
+  release_desc: { label: 'Release date, newest first', cmp: (a, b) => effectiveReleaseDate(b) - effectiveReleaseDate(a) },
   rating_desc: { label: 'Ranking, highest first', cmp: (a, b) => (b.rating || 0) - (a.rating || 0) },
 };
 
 const BACKLOG_SORTS = {
   added_desc: { label: 'Date added, newest first', cmp: (a, b) => new Date(b.date_added) - new Date(a.date_added) },
   added_asc: { label: 'Date added, oldest first', cmp: (a, b) => new Date(a.date_added) - new Date(b.date_added) },
-  release_desc: { label: 'Release date, newest first', cmp: (a, b) => (itemYear(b) || 0) - (itemYear(a) || 0) },
+  release_desc: { label: 'Release date, newest first', cmp: (a, b) => effectiveReleaseDate(b) - effectiveReleaseDate(a) },
 };
 
 function renderBacklog() {
@@ -1387,6 +1428,7 @@ async function applyCleanupMatch(item, match) {
   if (!item.description && match.description) patch.description = match.description;
   if (!item.year && match.year) patch.year = match.year;
   if (!item.creator && match.creator) patch.creator = match.creator;
+  if (!item.release_date && match.release_date) patch.release_date = match.release_date;
   const updated = await store.updateItem(item.id, patch);
   const idx = items.findIndex((i) => i.id === item.id);
   if (idx !== -1) items[idx] = updated;
@@ -2197,7 +2239,7 @@ function openEditModal(item) {
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
         <p class="modal-title">${escapeHtml(current.title)}</p>
-        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
+        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${modalDateLabel(current) ? ' · ' + escapeHtml(modalDateLabel(current)) : ''}</p>
         ${current.media_type === 'tv' ? `<p class="modal-subtitle" id="modalSeasonCount"></p>` : ''}
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
@@ -2211,7 +2253,7 @@ function openEditModal(item) {
     }
     ${
       current.status === 'wishlist'
-        ? `<div class="field" id="backlogTagField"><label>Tags</label>${tagChipsHtml('editBacklogTagChips', BACKLOG_TAGS, current.tags || [])}</div>`
+        ? `<div class="field" id="backlogTagField"><label>Tags</label>${tagChipsHtml('editBacklogTagChips', backlogTagsFor(current.media_type), current.tags || [])}</div>`
         : ''
     }
     ${
@@ -2437,7 +2479,7 @@ function openReviewModal(item) {
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
         <p class="modal-title">${escapeHtml(current.title)}</p>
-        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${current.year ? ' · ' + escapeHtml(current.year) : ''}</p>
+        <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${modalDateLabel(current) ? ' · ' + escapeHtml(modalDateLabel(current)) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
@@ -2558,11 +2600,7 @@ function openAddModal(prefill = {}) {
       external_source: prefill.external_source || 'manual',
       external_id: prefill.external_id || null,
       external_url: prefill.external_url || null,
-      // Only movies ever populate release_date (from TMDb search) — omit
-      // the key entirely for other types rather than sending it as null,
-      // so a lagging/missing release_date column can't block adding a
-      // book/game/show/etc. that has nothing to do with it.
-      ...(type === 'movie' ? { release_date: prefill.release_date || null } : {}),
+      release_date: prefill.release_date || null,
     };
   }
 
@@ -2774,10 +2812,7 @@ async function mergeDiscoverResultIntoItem(itemId, result) {
     external_source: result.external_source || item.external_source,
     external_id: result.external_id || item.external_id,
     external_url: result.external_url || item.external_url,
-    // Same movie-only guard as currentDraft() — omit the key for non-movie
-    // merges rather than sending null, so this can't block "Update Info"
-    // on a book/game/show/etc.
-    ...(result.media_type === 'movie' ? { release_date: result.release_date || item.release_date } : {}),
+    release_date: result.release_date || item.release_date,
   });
   const idx = items.findIndex((i) => i.id === itemId);
   if (idx !== -1) items[idx] = updated;
