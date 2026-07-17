@@ -169,6 +169,23 @@ class DemoStore {
     writeDemoGoals(goals);
     return goals[idx];
   }
+
+  // Steam wishlist sync needs a server (an Edge Function) to get around
+  // Steam's CORS restrictions, and a scheduled job to run it automatically
+  // — neither of which exists in Demo Mode. The UI hides this entirely
+  // when store.mode isn't 'supabase', so these only run if something calls
+  // them anyway.
+  async getSteamAccount() {
+    throw new Error('Steam sync needs a connected Supabase project — configure it in js/config.js.');
+  }
+
+  async setSteamAccount() {
+    throw new Error('Steam sync needs a connected Supabase project — configure it in js/config.js.');
+  }
+
+  async syncSteamWishlist() {
+    throw new Error('Steam sync needs a connected Supabase project — configure it in js/config.js.');
+  }
 }
 
 class SupabaseStore {
@@ -302,6 +319,39 @@ class SupabaseStore {
       .single();
     if (error) throw error;
     return data;
+  }
+
+  async getSteamAccount() {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client.from('steam_accounts').select('*').eq('user_id', user_id).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  async setSteamAccount(steamId) {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client
+      .from('steam_accounts')
+      .upsert({ user_id, steam_id: steamId }, { onConflict: 'user_id' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Calls the sync-steam-wishlist Edge Function (supabase/functions/
+  // sync-steam-wishlist) with the current session — Supabase attaches the
+  // user's JWT automatically, and the function looks up their Steam ID
+  // itself server-side (sidestepping Steam's CORS restrictions) and
+  // returns their wishlist mapped to item-shaped objects. It doesn't write
+  // to the database; the caller runs the result through the normal
+  // import-preview/dedupe/confirm flow, same as a CSV import.
+  async syncSteamWishlist() {
+    const { data, error } = await this.client.functions.invoke('sync-steam-wishlist');
+    if (error) throw new Error(error.message || 'Steam sync failed — please try again.');
+    return (data && data.items) || [];
   }
 }
 

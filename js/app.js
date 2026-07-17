@@ -1997,7 +1997,40 @@ function openCleanupModal(status) {
 
 // ---------- Import / Export ----------
 
-function openImportExportModal() {
+// Steam wishlist sync needs a server (the sync-steam-wishlist Edge
+// Function) to get around Steam's CORS restrictions, and only a connected
+// Supabase project has one — hidden entirely in Demo Mode rather than
+// shown disabled, consistent with how other Supabase-only capabilities
+// are gated elsewhere in the app.
+async function openImportExportModal() {
+  const steamEnabled = store.mode === 'supabase';
+  let steamAccount = null;
+  if (steamEnabled) {
+    try {
+      steamAccount = await store.getSteamAccount();
+    } catch {
+      steamAccount = null; // field just renders empty; not worth blocking the whole modal over
+    }
+  }
+
+  const steamFieldHtml = steamEnabled
+    ? `
+    <div class="field">
+      <label>Steam Wishlist</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">Your wishlist must be public (Steam → Privacy Settings). Find your SteamID64 at <a href="https://steamid.io" target="_blank" rel="noopener">steamid.io</a>. Syncs automatically once a day — use Sync Now to pull in new items right away.</p>
+      <input type="text" id="steamIdInput" placeholder="SteamID64" value="${escapeHtml(steamAccount ? steamAccount.steam_id : '')}">
+      ${
+        steamAccount && steamAccount.last_synced_at
+          ? `<p class="modal-subtitle" style="margin:6px 0 0;">Last synced ${new Date(steamAccount.last_synced_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>`
+          : ''
+      }
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="saveSteamIdBtn" style="width:100%;">Save</button>
+        <button type="button" class="btn-primary" id="syncSteamNowBtn" style="width:100%;">Sync Now</button>
+      </div>
+    </div>`
+    : '';
+
   const html = `
     <div class="modal-header">
       <div style="flex:1">
@@ -2025,6 +2058,7 @@ function openImportExportModal() {
       <p class="modal-subtitle" style="margin:0 0 8px;">Export your data at <a href="https://letterboxd.com/user/exportdata/" target="_blank" rel="noopener">letterboxd.com/user/exportdata</a>, then upload the .zip here as-is.</p>
       <input type="file" accept=".zip" id="letterboxdFile">
     </div>
+    ${steamFieldHtml}
     <div id="importNotice" class="notice warn hidden"></div>
   `;
   openModalWithContent(html);
@@ -2065,6 +2099,39 @@ function openImportExportModal() {
       openImportPreviewModal('Letterboxd', await parseLetterboxdZip(await file.arrayBuffer()));
     } catch (err) {
       showImportError(err);
+    }
+  });
+
+  if (!steamEnabled) return;
+
+  el('saveSteamIdBtn').addEventListener('click', async () => {
+    const value = el('steamIdInput').value.trim();
+    if (!value) return showImportError(new Error('Enter your SteamID64 first.'));
+    const btn = el('saveSteamIdBtn');
+    btn.disabled = true;
+    try {
+      await store.setSteamAccount(value);
+    } catch (err) {
+      showImportError(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  el('syncSteamNowBtn').addEventListener('click', async () => {
+    const value = el('steamIdInput').value.trim();
+    if (!value) return showImportError(new Error('Enter your SteamID64 first.'));
+    const btn = el('syncSteamNowBtn');
+    btn.disabled = true;
+    btn.textContent = 'Syncing…';
+    try {
+      await store.setSteamAccount(value);
+      const wishlistItems = await store.syncSteamWishlist();
+      openImportPreviewModal('Steam', wishlistItems);
+    } catch (err) {
+      showImportError(err);
+      btn.disabled = false;
+      btn.textContent = 'Sync Now';
     }
   });
 }
