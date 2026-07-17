@@ -146,10 +146,28 @@ class DemoStore {
     if (idx !== -1) {
       goals[idx] = { ...goals[idx], target, updated_at: now };
     } else {
-      goals.push({ id: uuid(), user_id: DEMO_USER_ID, year, media_type, target, created_at: now, updated_at: now });
+      goals.push({ id: uuid(), user_id: DEMO_USER_ID, year, media_type, media_types: null, target, created_at: now, updated_at: now });
     }
     writeDemoGoals(goals);
     return goals.find((g) => g.year === year && g.media_type === media_type);
+  }
+
+  async createGoal(year, media_types, target) {
+    const goals = readDemoGoals();
+    const now = new Date().toISOString();
+    const row = { id: uuid(), user_id: DEMO_USER_ID, year, media_type: null, media_types, target, created_at: now, updated_at: now };
+    goals.push(row);
+    writeDemoGoals(goals);
+    return row;
+  }
+
+  async updateGoal(id, media_types, target) {
+    const goals = readDemoGoals();
+    const idx = goals.findIndex((g) => g.id === id);
+    if (idx === -1) throw new Error('Goal not found');
+    goals[idx] = { ...goals[idx], media_types, target, updated_at: new Date().toISOString() };
+    writeDemoGoals(goals);
+    return goals[idx];
   }
 }
 
@@ -257,6 +275,29 @@ class SupabaseStore {
     const { data, error } = await this.client
       .from('goals')
       .upsert({ user_id, year, media_type, target }, { onConflict: 'user_id,year,media_type' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async createGoal(year, media_types, target) {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client
+      .from('goals')
+      .insert([{ user_id, year, media_type: null, media_types, target }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updateGoal(id, media_types, target) {
+    const { data, error } = await this.client
+      .from('goals')
+      .update({ media_types, target })
+      .eq('id', id)
       .select()
       .single();
     if (error) throw error;

@@ -18,6 +18,20 @@ const TYPE_COLOR = {
   restaurant: 'var(--type-restaurant)',
   other: 'var(--type-other)',
 };
+// Plural forms for custom-goal card titles/congrats text (e.g. "12 movies
+// and video games this year") — kept as an explicit map rather than naive
+// string concatenation so "TV Show" -> "TV shows" reads correctly.
+const TYPE_LABEL_PLURAL = {
+  movie: 'movies',
+  tv: 'TV shows',
+  book: 'books',
+  podcast: 'podcasts',
+  album: 'albums',
+  game: 'video games',
+  play: 'plays',
+  restaurant: 'restaurants',
+  other: 'other items',
+};
 const EXTERNAL_LINK_LABEL = { itunes: 'Open in Apple Podcasts', musicbrainz: 'View on MusicBrainz', google_books: 'View on Google Books' };
 const COMPLETED_VERB = { movie: 'Watched', tv: 'Watched', book: 'Read', podcast: 'Listened', album: 'Listened', game: 'Played', play: 'Seen', restaurant: 'Been', other: 'Done' };
 const START_LABEL = { book: 'Start Reading', tv: 'Start Watching', game: 'Start Playing' };
@@ -1595,14 +1609,18 @@ function accountPieChartHtml(year) {
     </div>`;
 }
 
-// Count of completed items of one media type in one year — the reading
-// goal's progress bar is always just this, computed fresh, never a stored
+// Count of completed items across one or more media types in one year —
+// goal progress is always just this, computed fresh, never a stored
 // counter. That's what makes "already marked as watched" and "automatically
 // updated" both true for free: nothing to backfill, nothing to increment.
-function completedCountForYear(year, mediaType) {
+function completedCountForYearTypes(year, mediaTypes) {
   return items.filter(
-    (i) => i.media_type === mediaType && i.status === 'completed' && i.date_completed && new Date(i.date_completed).getFullYear() === year
+    (i) => mediaTypes.includes(i.media_type) && i.status === 'completed' && i.date_completed && new Date(i.date_completed).getFullYear() === year
   ).length;
+}
+
+function completedCountForYear(year, mediaType) {
+  return completedCountForYearTypes(year, [mediaType]);
 }
 
 // Goals only ever make sense for the current year or — starting 3 weeks
@@ -1615,7 +1633,26 @@ function nextYearGoalEligible() {
   return Math.ceil((nextJan1 - now) / (24 * 60 * 60 * 1000)) <= 21;
 }
 
-// Goal card mimics .currently-card's shape/glass treatment, with the arc
+function joinWithAnd(list) {
+  if (list.length <= 1) return list[0] || '';
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')}, and ${list[list.length - 1]}`;
+}
+
+function goalTypesLabel(mediaTypes) {
+  return joinWithAnd(mediaTypes.map((t) => TYPE_LABEL_PLURAL[t] || t));
+}
+
+function capitalize(str) {
+  return str ? str[0].toUpperCase() + str.slice(1) : str;
+}
+
+function goalCongratsText(kind, target, mediaTypes) {
+  if (kind === 'book') return `Congrats! You finished your reading goal of ${target} books this year.`;
+  return `Congrats! You finished your goal of ${target} ${goalTypesLabel(mediaTypes)} this year.`;
+}
+
+// Goal cards mimic .currently-card's shape/glass treatment, with the arc
 // standing in for the poster slot. Circumference math for a circle of
 // radius 50 inside a 120x120 viewBox; the SVG is rotated -90deg (in CSS)
 // so the arc starts at 12 o'clock instead of 3 o'clock.
@@ -1636,14 +1673,31 @@ function goalArcHtml(target, count) {
     </div>`;
 }
 
-// editing controls whether the card body shows the Edit button or an
-// inline number input in its place — same node either way, just what's
-// rendered inside #goalCard, re-rendered fresh on every state change
-// (display <-> editing, or a saved value) rather than toggled in place.
-function goalCardHtml(target, count, editing) {
+// Once a goal is hit, its card swaps entirely for a green congrats state —
+// no arc, just the message and an Edit button. The Edit button carries the
+// same data-goal-edit(-id) attribute the in-progress card's does, so
+// raising the target back out of reach reverts the card on the very next
+// render — nothing extra to wire.
+function goalCompletedCardHtml(message, editAttr) {
+  return `
+    <div class="goal-card goal-card--completed glass">
+      <div class="goal-card-completed-body">
+        <p class="goal-congrats-text">${escapeHtml(message)}</p>
+        <button type="button" class="btn-secondary btn-small goal-edit-btn" ${editAttr}>Edit</button>
+      </div>
+    </div>`;
+}
+
+// The book goal is the one constant, always-present card. Editing happens
+// in place — an inline number input swapped in for the Edit button — same
+// convention as before; editing controls which of the two is rendered.
+function bookGoalCardHtml(target, count, editing) {
+  if (target && count >= target && !editing) {
+    return goalCompletedCardHtml(goalCongratsText('book', target, null), 'data-goal-edit="book"');
+  }
   const editControl = editing
     ? `<input type="number" id="goalTargetInput" class="goal-edit-input glass-input" min="1" inputmode="numeric" placeholder="e.g. 12" value="${target || ''}">`
-    : `<button type="button" class="btn-secondary btn-small goal-edit-btn" id="goalEditBtn">Edit</button>`;
+    : `<button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit="book">Edit</button>`;
   return `
     <div class="goal-card glass">
       ${goalArcHtml(target, count)}
@@ -1654,9 +1708,38 @@ function goalCardHtml(target, count, editing) {
     </div>`;
 }
 
+// Custom goals are user-defined (any combination of media types) — editing
+// always opens the Add/Edit Goal modal rather than an inline input, since
+// there's more than just a number to change.
+function customGoalCardHtml(goal, count) {
+  const { id, target, media_types } = goal;
+  if (target && count >= target) {
+    return goalCompletedCardHtml(goalCongratsText('custom', target, media_types), `data-goal-edit-id="${id}"`);
+  }
+  return `
+    <div class="goal-card glass">
+      ${goalArcHtml(target, count)}
+      <div class="card-body">
+        <p class="card-title">${escapeHtml(capitalize(goalTypesLabel(media_types)))}</p>
+        <button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit-id="${id}">Edit</button>
+      </div>
+    </div>`;
+}
+
+// Ghost card at the end of the carousel — same visual language as
+// Discover's "Add manually" card (dashed border, plus icon), sized to
+// match the goal cards around it.
+function addGoalCardHtml() {
+  return `
+    <div class="goal-card glass goal-card--add" data-add-goal="true">
+      <div class="goal-card-add-icon">＋</div>
+      <p class="card-title">Add Goal</p>
+    </div>`;
+}
+
 // Renders straight into the #tab-account page (not a modal) — called each
 // time the Account item is opened, so it's always built from the current
-// in-memory items/user state. Async only for the goal section (a tiny,
+// in-memory items/user state. Async only for the goals section (a tiny,
 // rarely-changing dataset loaded fresh on each visit rather than at app
 // boot, since nothing outside this page ever needs it).
 async function renderAccountPage() {
@@ -1681,17 +1764,21 @@ async function renderAccountPage() {
     el('accountPieChart').innerHTML = accountPieChartHtml(year);
   };
 
-  // ---- Reading goal (books only, for now) ----
+  // ---- Goals ----
   const goals = await store.listGoals();
   const nextYear = currentYear + 1;
 
-  function renderGoalYear(year, editing = false) {
-    const goal = goals.find((g) => g.year === year && g.media_type === 'book');
-    const target = goal ? goal.target : null;
-    const count = completedCountForYear(year, 'book');
-    el('goalCard').innerHTML = goalCardHtml(target, count, editing);
+  function renderGoalCarousel(year, bookEditing = false) {
+    const bookGoal = goals.find((g) => g.year === year && g.media_type === 'book');
+    const customGoals = goals.filter((g) => g.year === year && Array.isArray(g.media_types) && g.media_types.length);
 
-    if (editing) {
+    el('goalCarousel').innerHTML = [
+      bookGoalCardHtml(bookGoal ? bookGoal.target : null, completedCountForYear(year, 'book'), bookEditing),
+      ...customGoals.map((g) => customGoalCardHtml(g, completedCountForYearTypes(year, g.media_types))),
+      addGoalCardHtml(),
+    ].join('');
+
+    if (bookEditing) {
       const input = el('goalTargetInput');
       input.focus();
       input.select();
@@ -1707,14 +1794,94 @@ async function renderAccountPage() {
           if (idx !== -1) goals[idx] = updated;
           else goals.push(updated);
         }
-        renderGoalYear(year); // revert to display mode either way
+        renderGoalCarousel(year); // revert to display mode either way
       };
       input.onkeydown = (e) => {
         if (e.key === 'Enter') input.blur();
       };
-    } else {
-      el('goalEditBtn').onclick = () => renderGoalYear(year, true);
     }
+
+    el('goalCarousel').querySelectorAll('[data-goal-edit="book"]').forEach((btn) => {
+      btn.onclick = () => renderGoalCarousel(year, true);
+    });
+    el('goalCarousel').querySelectorAll('[data-goal-edit-id]').forEach((btn) => {
+      btn.onclick = () => {
+        const goal = customGoals.find((g) => g.id === btn.dataset.goalEditId);
+        if (goal) openGoalModal(year, goal);
+      };
+    });
+    const addCard = el('goalCarousel').querySelector('[data-add-goal]');
+    if (addCard) addCard.onclick = () => openGoalModal(year, null);
+  }
+
+  // Add/Edit Goal modal — a multi-select checkbox list of media types plus
+  // a target number, shared by both creating a new custom goal and editing
+  // an existing one (existing selections/target pre-filled when editing).
+  function openGoalModal(year, goal) {
+    const editing = !!goal;
+    const selectedTypes = new Set(goal ? goal.media_types : []);
+    const html = `
+      <div class="modal-header">
+        <div style="flex:1">
+          <p class="modal-title">${editing ? 'Edit Goal' : 'Add Goal'}</p>
+        </div>
+        <button class="modal-close" id="modalCloseBtn">✕</button>
+      </div>
+      <div class="field">
+        <label>Count toward this goal</label>
+        <div class="goal-type-checklist">
+          ${ALL_TYPES.map(
+            (t) => `
+            <label class="tag-filter-option">
+              <input type="checkbox" data-goal-modal-type="${t}" value="${t}" ${selectedTypes.has(t) ? 'checked' : ''}>
+              ${TYPE_LABEL[t]}
+            </label>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label for="goalModalTarget">Number of items</label>
+        <input type="number" id="goalModalTarget" min="1" inputmode="numeric" placeholder="e.g. 12" value="${goal ? goal.target : ''}">
+      </div>
+      <div id="goalModalError" class="notice warn hidden"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="goalModalSaveBtn">Set Goal</button>
+      </div>
+    `;
+    openModalWithContent(html);
+    el('modalCloseBtn').addEventListener('click', closeModal);
+
+    function showGoalError(message) {
+      const n = el('goalModalError');
+      n.textContent = message;
+      n.classList.remove('hidden');
+    }
+
+    el('goalModalSaveBtn').addEventListener('click', async () => {
+      const types = Array.from(document.querySelectorAll('[data-goal-modal-type]:checked')).map((box) => box.value);
+      if (!types.length) return showGoalError('Select at least one media type.');
+      const target = parseInt(el('goalModalTarget').value, 10);
+      if (!target || target < 1) return showGoalError('Enter a target of at least 1.');
+
+      const btn = el('goalModalSaveBtn');
+      btn.disabled = true;
+      try {
+        let saved;
+        if (editing) {
+          saved = await store.updateGoal(goal.id, types, target);
+          const idx = goals.findIndex((g) => g.id === goal.id);
+          if (idx !== -1) goals[idx] = saved;
+        } else {
+          saved = await store.createGoal(year, types, target);
+          goals.push(saved);
+        }
+        closeModal();
+        renderGoalCarousel(year);
+      } catch (err) {
+        btn.disabled = false;
+        showGoalError(err.message || 'Could not save that goal — please try again.');
+      }
+    });
   }
 
   const toggle = el('goalYearToggle');
@@ -1726,14 +1893,14 @@ async function renderAccountPage() {
     `;
     toggle.dataset.value = String(currentYear);
     wireChipGroup('goalYearToggle', () => {
-      renderGoalYear(parseInt(toggle.dataset.value, 10));
+      renderGoalCarousel(parseInt(toggle.dataset.value, 10));
     });
   } else {
     toggle.classList.add('hidden');
     toggle.innerHTML = '';
   }
 
-  renderGoalYear(currentYear);
+  renderGoalCarousel(currentYear);
 }
 
 function openCleanupModal(status) {

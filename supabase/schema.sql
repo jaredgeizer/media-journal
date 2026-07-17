@@ -90,18 +90,26 @@ create policy "Users can delete their own items"
   on public.items for delete
   using (auth.uid() = user_id);
 
--- Yearly goals (e.g. "12 books in 2026") — one row per user/year/media_type,
--- so a future goal for another media type is just a new row, no migration
--- needed. Progress itself isn't stored here; the app derives it from items
--- (count of that media_type completed in that year) every time it renders.
+-- Yearly goals. Two kinds of row share this table:
+--   - The constant reading goal: media_type = 'book', media_types = null.
+--     One per user/year (enforced by the unique constraint below — Postgres
+--     treats NULL media_type as distinct across rows, so it never collides
+--     with the custom goals underneath).
+--   - User-defined custom goals: media_type = null, media_types = a
+--     non-empty array of the media types that count toward it (e.g.
+--     ['movie', 'tv']). Any number per user/year, identified by id.
+-- Progress itself isn't stored here; the app derives it from items (count of
+-- the matching media type(s) completed in that year) every time it renders.
 create table if not exists public.goals (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references auth.users (id) on delete cascade,
-  year       smallint not null,
-  media_type text not null,
-  target     smallint not null check (target > 0),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  year        smallint not null,
+  media_type  text,
+  media_types text[],
+  target      smallint not null check (target > 0),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  constraint goals_media_type_xor check ((media_type is not null) <> (media_types is not null)),
   unique (user_id, year, media_type)
 );
 

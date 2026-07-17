@@ -124,20 +124,22 @@ alter table public.items add column if not exists notified_release_soon_days sma
 alter table public.items add column if not exists notified_release_day_at timestamptz;
 ```
 
-There's also a new `goals` table (used by the Account page's yearly
-reading goal) — this one's a separate block since it creates a whole
-table rather than altering `items`. Safe to run on its own, any time,
-regardless of which of the `items` statements above you've already run:
+There's also a `goals` table (used by the Account page's yearly goals) —
+this one's a separate block since it creates a whole table rather than
+altering `items`. Safe to run on its own, any time, regardless of which
+of the `items` statements above you've already run:
 
 ```sql
 create table if not exists public.goals (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references auth.users (id) on delete cascade,
-  year       smallint not null,
-  media_type text not null,
-  target     smallint not null check (target > 0),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  year        smallint not null,
+  media_type  text,
+  media_types text[],
+  target      smallint not null check (target > 0),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  constraint goals_media_type_xor check ((media_type is not null) <> (media_types is not null)),
   unique (user_id, year, media_type)
 );
 create index if not exists goals_user_id_idx on public.goals (user_id);
@@ -154,6 +156,17 @@ drop policy if exists "Users can update their own goals" on public.goals;
 create policy "Users can update their own goals" on public.goals for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 drop policy if exists "Users can delete their own goals" on public.goals;
 create policy "Users can delete their own goals" on public.goals for delete using (auth.uid() = user_id);
+```
+
+If you already had the `goals` table from before custom (multi-media-type)
+goals existed, it was created with `media_type text not null` and no
+`media_types` column — run this to bring it up to date:
+
+```sql
+alter table public.goals alter column media_type drop not null;
+alter table public.goals add column if not exists media_types text[];
+alter table public.goals drop constraint if exists goals_media_type_xor;
+alter table public.goals add constraint goals_media_type_xor check ((media_type is not null) <> (media_types is not null));
 ```
 
 ## Setting up movie & TV search (TMDb)
