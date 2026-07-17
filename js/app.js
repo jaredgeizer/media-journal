@@ -30,6 +30,10 @@ let backlogViewMode = 'grid';
 // instead of creating a new one — how "Update Info" fills in a quick-added
 // item's real details.
 let discoverMergeTargetId = null;
+// Set from store.onAuthChange() — used by the Account modal to show who's
+// signed in. null in Demo Mode (there's no real account) or before the
+// first auth callback fires.
+let currentUser = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -132,6 +136,7 @@ async function boot() {
       location.replace('login.html');
       return;
     }
+    currentUser = user;
     await loadItems();
   });
 }
@@ -194,6 +199,11 @@ el('notifBtn').addEventListener('click', (e) => {
     localStorage.setItem(NOTIF_LAST_SEEN_KEY, new Date().toISOString());
     el('notifDot').classList.add('hidden');
   }
+});
+
+el('accountStatsBtn').addEventListener('click', () => {
+  el('accountDropdown').classList.add('hidden');
+  openAccountModal();
 });
 
 el('importExportBtn').addEventListener('click', () => {
@@ -872,7 +882,14 @@ function renderCurrently() {
       number.value = slider.value;
     });
     slider.addEventListener('change', async () => {
-      const updated = await store.updateItem(id, { progress_percent: clampPct(parseInt(slider.value, 10) || 0) });
+      const v = clampPct(parseInt(slider.value, 10) || 0);
+      // Hitting 100% means done — mark it completed and go straight to the
+      // review modal instead of just sitting at a maxed-out progress bar.
+      if (v === 100) {
+        await markItemCompleted(items.find((i) => i.id === id), { progress_percent: 100 });
+        return;
+      }
+      const updated = await store.updateItem(id, { progress_percent: v });
       const idx = items.findIndex((i) => i.id === id);
       items[idx] = updated;
       renderCurrently();
@@ -890,6 +907,10 @@ function renderCurrently() {
       const v = clampPct(parseInt(number.value, 10) || 0);
       number.value = v;
       slider.value = v;
+      if (v === 100) {
+        await markItemCompleted(items.find((i) => i.id === id), { progress_percent: 100 });
+        return;
+      }
       const updated = await store.updateItem(id, { progress_percent: v });
       const idx = items.findIndex((i) => i.id === id);
       items[idx] = updated;
@@ -1480,6 +1501,80 @@ function cleanupRowHtml(item) {
     </div>`;
 }
 
+// ---------- Account ----------
+
+// Years that have at least one completed item, plus the current year
+// (always included so a brand-new year isn't an empty dropdown), newest
+// first — computed fresh every time the modal opens, so it naturally
+// keeps up as real years pass with zero maintenance.
+function accountYearOptions() {
+  const years = new Set([new Date().getFullYear()]);
+  items.forEach((i) => {
+    if (i.status === 'completed' && i.date_completed) years.add(new Date(i.date_completed).getFullYear());
+  });
+  return Array.from(years).sort((a, b) => b - a);
+}
+
+// Counts of completed items per media type for a given year (or 'all'),
+// sorted highest first, omitting types with nothing logged.
+function accountStatsForYear(year) {
+  const matches = items.filter((i) => {
+    if (i.status !== 'completed' || !i.date_completed) return false;
+    return year === 'all' || new Date(i.date_completed).getFullYear() === year;
+  });
+  const counts = {};
+  matches.forEach((i) => {
+    counts[i.media_type] = (counts[i.media_type] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([type, count]) => ({ type, label: TYPE_LABEL[type] || type, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function accountStatsHtml(year) {
+  const stats = accountStatsForYear(year);
+  if (!stats.length) {
+    return `<p class="empty-state">Nothing logged ${year === 'all' ? 'yet' : `in ${year}`}.</p>`;
+  }
+  const total = stats.reduce((sum, s) => sum + s.count, 0);
+  return `
+    <div class="account-stats-list">
+      <div class="account-stats-row account-stats-total"><span>Total</span><span class="account-stats-count">${total}</span></div>
+      ${stats.map((s) => `<div class="account-stats-row"><span>${escapeHtml(s.label)}</span><span class="account-stats-count">${s.count}</span></div>`).join('')}
+    </div>`;
+}
+
+function openAccountModal() {
+  const nameLabel = store.mode === 'demo' ? 'Demo Mode' : (currentUser && currentUser.email) || '';
+  const years = accountYearOptions();
+  const currentYear = new Date().getFullYear();
+
+  const html = `
+    <div class="modal-header">
+      <div style="flex:1">
+        <p class="modal-title">Account</p>
+        <p class="modal-subtitle">${escapeHtml(nameLabel)}</p>
+      </div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div class="field">
+      <label for="accountYearSelect">Year</label>
+      <select id="accountYearSelect">
+        ${years.map((y) => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('')}
+        <option value="all">All Years</option>
+      </select>
+    </div>
+    <div id="accountStats">${accountStatsHtml(currentYear)}</div>
+  `;
+  openModalWithContent(html);
+  el('modalCloseBtn').addEventListener('click', closeModal);
+
+  el('accountYearSelect').addEventListener('change', (e) => {
+    const year = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
+    el('accountStats').innerHTML = accountStatsHtml(year);
+  });
+}
+
 function openCleanupModal(status) {
   const labels = CLEANUP_LABELS[status];
   const candidates = cleanupCandidates(status);
@@ -1747,7 +1842,11 @@ function openEditModal(item) {
       number.value = e.target.value;
     });
     slider.addEventListener('change', (e) => {
-      persist({ progress_percent: clampPct(parseInt(e.target.value, 10) || 0) });
+      const v = clampPct(parseInt(e.target.value, 10) || 0);
+      // Hitting 100% means done — mark it completed and go straight to the
+      // review modal instead of just sitting at a maxed-out progress bar.
+      if (v === 100) markItemCompleted(current, { progress_percent: 100 });
+      else persist({ progress_percent: v });
     });
 
     number.addEventListener('input', (e) => {
@@ -1757,7 +1856,8 @@ function openEditModal(item) {
       const v = clampPct(parseInt(e.target.value, 10) || 0);
       number.value = v;
       slider.value = v;
-      persist({ progress_percent: v });
+      if (v === 100) markItemCompleted(current, { progress_percent: 100 });
+      else persist({ progress_percent: v });
     });
   }
   if (current.status === 'in_progress' && EPISODE_PROGRESS_TYPES.includes(current.media_type)) {
@@ -1835,13 +1935,7 @@ function openEditModal(item) {
     markBtn.addEventListener('click', async () => {
       markBtn.disabled = true;
       try {
-        const updated = await persist({
-          status: 'completed',
-          date_completed: current.date_completed || new Date().toISOString(),
-          tags: (current.tags || []).filter((t) => !BACKLOG_TAGS.includes(t)),
-        });
-        switchTab('journal');
-        openReviewModalSafely(updated);
+        await markItemCompleted(current);
       } catch (err) {
         markBtn.disabled = false;
         alert(err.message || 'Could not save that — please try again.');
@@ -2113,6 +2207,26 @@ function openAddModal(prefill = {}) {
       showAddError(err);
     }
   });
+}
+
+// Shared "mark as completed" step, used both by the explicit Finished
+// button and by progress hitting 100% automatically — one write (merging
+// in any extra fields, e.g. the progress value that triggered it), then
+// routes to the review modal exactly like tapping Finished would.
+async function markItemCompleted(item, extraPatch = {}) {
+  const updated = await store.updateItem(item.id, {
+    ...extraPatch,
+    status: 'completed',
+    date_completed: item.date_completed || new Date().toISOString(),
+    tags: (item.tags || []).filter((t) => !BACKLOG_TAGS.includes(t)),
+  });
+  const idx = items.findIndex((i) => i.id === item.id);
+  if (idx !== -1) items[idx] = updated;
+  renderBacklog();
+  renderJournal();
+  switchTab('journal');
+  openReviewModalSafely(updated);
+  return updated;
 }
 
 // The item is already safely saved by the time this runs — if building the
