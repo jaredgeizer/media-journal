@@ -1337,9 +1337,6 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 .goal-card--completed .goal-edit-btn { width: 100%; }
 
 .goal-card--add {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
