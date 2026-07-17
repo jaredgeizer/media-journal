@@ -1674,30 +1674,33 @@ function goalArcHtml(target, count) {
 }
 
 // Once a goal is hit, its card swaps entirely for a green congrats state —
-// no arc, just the message and an Edit button. The Edit button carries the
-// same data-goal-edit(-id) attribute the in-progress card's does, so
-// raising the target back out of reach reverts the card on the very next
-// render — nothing extra to wire.
-function goalCompletedCardHtml(message, editAttr) {
+// no arc, just the message and (unless read-only, for a past year) an Edit
+// button. The Edit button carries the same data-goal-edit(-id) attribute
+// the in-progress card's does, so raising the target back out of reach
+// reverts the card on the very next render — nothing extra to wire.
+function goalCompletedCardHtml(message, editAttr, readOnly = false) {
   return `
     <div class="goal-card goal-card--completed glass">
       <div class="goal-card-completed-body">
         <p class="goal-congrats-text">${escapeHtml(message)}</p>
-        <button type="button" class="btn-secondary btn-small goal-edit-btn" ${editAttr}>Edit</button>
+        ${readOnly ? '' : `<button type="button" class="btn-secondary btn-small goal-edit-btn" ${editAttr}>Edit</button>`}
       </div>
     </div>`;
 }
 
-// The book goal is the one constant, always-present card. Editing happens
-// in place — an inline number input swapped in for the Edit button — same
-// convention as before; editing controls which of the two is rendered.
-function bookGoalCardHtml(target, count, editing) {
+// The book goal is the one constant, always-present card for the current
+// year. Editing happens in place — an inline number input swapped in for
+// the Edit button — same convention as before; editing controls which of
+// the two is rendered. Past years render read-only (no Edit button at all).
+function bookGoalCardHtml(target, count, editing, readOnly = false) {
   if (target && count >= target && !editing) {
-    return goalCompletedCardHtml(goalCongratsText('book', target, null), 'data-goal-edit="book"');
+    return goalCompletedCardHtml(goalCongratsText('book', target, null), 'data-goal-edit="book"', readOnly);
   }
-  const editControl = editing
-    ? `<input type="number" id="goalTargetInput" class="goal-edit-input glass-input" min="1" inputmode="numeric" placeholder="e.g. 12" value="${target || ''}">`
-    : `<button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit="book">Edit</button>`;
+  const editControl = readOnly
+    ? ''
+    : editing
+      ? `<input type="number" id="goalTargetInput" class="goal-edit-input glass-input" min="1" inputmode="numeric" placeholder="e.g. 12" value="${target || ''}">`
+      : `<button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit="book">Edit</button>`;
   return `
     <div class="goal-card glass">
       ${goalArcHtml(target, count)}
@@ -1710,18 +1713,18 @@ function bookGoalCardHtml(target, count, editing) {
 
 // Custom goals are user-defined (any combination of media types) — editing
 // always opens the Add/Edit Goal modal rather than an inline input, since
-// there's more than just a number to change.
-function customGoalCardHtml(goal, count) {
+// there's more than just a number to change. Past years render read-only.
+function customGoalCardHtml(goal, count, readOnly = false) {
   const { id, target, media_types } = goal;
   if (target && count >= target) {
-    return goalCompletedCardHtml(goalCongratsText('custom', target, media_types), `data-goal-edit-id="${id}"`);
+    return goalCompletedCardHtml(goalCongratsText('custom', target, media_types), `data-goal-edit-id="${id}"`, readOnly);
   }
   return `
     <div class="goal-card glass">
       ${goalArcHtml(target, count)}
       <div class="card-body">
         <p class="card-title">${escapeHtml(capitalize(goalTypesLabel(media_types)))}</p>
-        <button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit-id="${id}">Edit</button>
+        ${readOnly ? '' : `<button type="button" class="btn-secondary btn-small goal-edit-btn" data-goal-edit-id="${id}">Edit</button>`}
       </div>
     </div>`;
 }
@@ -1762,6 +1765,7 @@ async function renderAccountPage() {
     const year = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
     el('accountStats').innerHTML = accountStatsHtml(year);
     el('accountPieChart').innerHTML = accountPieChartHtml(year);
+    updateGoalsSection(year);
   };
 
   // ---- Goals ----
@@ -1812,6 +1816,21 @@ async function renderAccountPage() {
     });
     const addCard = el('goalCarousel').querySelector('[data-add-goal]');
     if (addCard) addCard.onclick = () => openGoalModal(year, null);
+  }
+
+  // Past years are historical — no editing, no adding, just whatever was
+  // actually set that year. Returns whether there was anything to show, so
+  // the caller can hide the section entirely when there wasn't.
+  function renderReadOnlyGoalCards(year) {
+    const bookGoal = goals.find((g) => g.year === year && g.media_type === 'book');
+    const customGoals = goals.filter((g) => g.year === year && Array.isArray(g.media_types) && g.media_types.length);
+    if (!bookGoal && !customGoals.length) return false;
+
+    el('goalCarousel').innerHTML = [
+      bookGoal ? bookGoalCardHtml(bookGoal.target, completedCountForYear(year, 'book'), false, true) : '',
+      ...customGoals.map((g) => customGoalCardHtml(g, completedCountForYearTypes(year, g.media_types), true)),
+    ].join('');
+    return true;
   }
 
   // Add/Edit Goal modal — a multi-select checkbox list of media types plus
@@ -1884,23 +1903,50 @@ async function renderAccountPage() {
     });
   }
 
-  const toggle = el('goalYearToggle');
-  if (nextYearGoalEligible()) {
-    toggle.classList.remove('hidden');
-    toggle.innerHTML = `
-      <button type="button" class="chip active" data-value="${currentYear}">This Year</button>
-      <button type="button" class="chip" data-value="${nextYear}">Next Year</button>
-    `;
-    toggle.dataset.value = String(currentYear);
-    wireChipGroup('goalYearToggle', () => {
-      renderGoalCarousel(parseInt(toggle.dataset.value, 10));
-    });
-  } else {
-    toggle.classList.add('hidden');
-    toggle.innerHTML = '';
+  // Only the current year gets the This Year/Next Year planning-ahead
+  // toggle — past years have no "next year" of their own to set up.
+  function setupGoalYearToggle() {
+    const toggle = el('goalYearToggle');
+    if (nextYearGoalEligible()) {
+      toggle.classList.remove('hidden');
+      toggle.innerHTML = `
+        <button type="button" class="chip active" data-value="${currentYear}">This Year</button>
+        <button type="button" class="chip" data-value="${nextYear}">Next Year</button>
+      `;
+      toggle.dataset.value = String(currentYear);
+      wireChipGroup('goalYearToggle', () => {
+        renderGoalCarousel(parseInt(toggle.dataset.value, 10));
+      });
+    } else {
+      toggle.classList.add('hidden');
+      toggle.innerHTML = '';
+    }
   }
 
-  renderGoalCarousel(currentYear);
+  // Ties the Goals section to whichever year the rest of the Account page
+  // is showing: the current year gets the full editable carousel (plus the
+  // This Year/Next Year toggle for planning ahead); any other specific year
+  // shows that year's goals read-only, or hides the section entirely if
+  // nothing was ever set for it. "All Years" has no single year for goals
+  // to apply to, so it hides the section too.
+  function updateGoalsSection(year) {
+    const section = el('accountGoalSection');
+    if (year === 'all') {
+      section.classList.add('hidden');
+      return;
+    }
+    if (year === currentYear) {
+      section.classList.remove('hidden');
+      setupGoalYearToggle();
+      renderGoalCarousel(currentYear);
+      return;
+    }
+    el('goalYearToggle').classList.add('hidden');
+    el('goalYearToggle').innerHTML = '';
+    section.classList.toggle('hidden', !renderReadOnlyGoalCards(year));
+  }
+
+  updateGoalsSection(currentYear);
 }
 
 function openCleanupModal(status) {

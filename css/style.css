@@ -1259,7 +1259,7 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
 .goal-card-arc-wrap {
   width: 100%;
-  aspect-ratio: 2 / 3;
+  height: 190px;
   display: flex;
   align-items: center;
   justify-content: center;
