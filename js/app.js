@@ -1615,15 +1615,43 @@ function nextYearGoalEligible() {
   return Math.ceil((nextJan1 - now) / (24 * 60 * 60 * 1000)) <= 21;
 }
 
-function goalProgressHtml(target, count) {
-  if (!target) {
-    return `<p class="empty-state">Set a goal above to start tracking your progress.</p>`;
-  }
-  const pct = Math.min(100, Math.round((count / target) * 100));
+// Goal card mimics .currently-card's shape/glass treatment, with the arc
+// standing in for the poster slot. Circumference math for a circle of
+// radius 50 inside a 120x120 viewBox; the SVG is rotated -90deg (in CSS)
+// so the arc starts at 12 o'clock instead of 3 o'clock.
+const GOAL_ARC_RADIUS = 50;
+const GOAL_ARC_CIRCUMFERENCE = 2 * Math.PI * GOAL_ARC_RADIUS;
+
+function goalArcHtml(target, count) {
+  const pct = target ? Math.min(100, (count / target) * 100) : 0;
+  const offset = GOAL_ARC_CIRCUMFERENCE * (1 - pct / 100);
+  const label = target ? `${count}/${target}` : `${count}/–`;
   return `
-    <div class="goal-progress-label"><span>${count} of ${target} books</span><span>${pct}%</span></div>
-    <div class="goal-progress-track"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
-  `;
+    <div class="goal-card-arc-wrap">
+      <svg class="goal-arc" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="goal-arc-track" cx="60" cy="60" r="${GOAL_ARC_RADIUS}"></circle>
+        <circle class="goal-arc-fill" cx="60" cy="60" r="${GOAL_ARC_RADIUS}" stroke-dasharray="${GOAL_ARC_CIRCUMFERENCE}" stroke-dashoffset="${offset}"></circle>
+      </svg>
+      <div class="goal-arc-label">${label}</div>
+    </div>`;
+}
+
+// editing controls whether the card body shows the Edit button or an
+// inline number input in its place — same node either way, just what's
+// rendered inside #goalCard, re-rendered fresh on every state change
+// (display <-> editing, or a saved value) rather than toggled in place.
+function goalCardHtml(target, count, editing) {
+  const editControl = editing
+    ? `<input type="number" id="goalTargetInput" class="goal-edit-input glass-input" min="1" inputmode="numeric" placeholder="e.g. 12" value="${target || ''}">`
+    : `<button type="button" class="btn-secondary btn-small goal-edit-btn" id="goalEditBtn">Edit</button>`;
+  return `
+    <div class="goal-card glass">
+      ${goalArcHtml(target, count)}
+      <div class="card-body">
+        <p class="card-title">Reading Goal</p>
+        ${editControl}
+      </div>
+    </div>`;
 }
 
 // Renders straight into the #tab-account page (not a modal) — called each
@@ -1657,24 +1685,36 @@ async function renderAccountPage() {
   const goals = await store.listGoals();
   const nextYear = currentYear + 1;
 
-  function renderGoalYear(year) {
+  function renderGoalYear(year, editing = false) {
     const goal = goals.find((g) => g.year === year && g.media_type === 'book');
-    el('goalYearLabel').textContent = year;
-    el('goalTargetInput').value = goal ? goal.target : '';
-    el('goalProgress').innerHTML = goalProgressHtml(goal ? goal.target : null, completedCountForYear(year, 'book'));
+    const target = goal ? goal.target : null;
+    const count = completedCountForYear(year, 'book');
+    el('goalCard').innerHTML = goalCardHtml(target, count, editing);
 
-    el('goalTargetInput').onchange = async (e) => {
-      const value = parseInt(e.target.value, 10);
-      if (!value || value < 1) {
-        renderGoalYear(year); // invalid entry — revert to the last saved state
-        return;
-      }
-      const updated = await store.upsertGoal(year, 'book', value);
-      const idx = goals.findIndex((g) => g.year === year && g.media_type === 'book');
-      if (idx !== -1) goals[idx] = updated;
-      else goals.push(updated);
-      renderGoalYear(year); // re-render from the saved state (also re-attaches this handler cleanly)
-    };
+    if (editing) {
+      const input = el('goalTargetInput');
+      input.focus();
+      input.select();
+      // Save-on-blur (also triggered by Enter, via input.blur() below) —
+      // covers both committing a change and canceling by clicking away,
+      // in one handler, so there's no risk of it double-firing against a
+      // separate change handler once this re-render removes the input.
+      input.onblur = async () => {
+        const value = parseInt(input.value, 10);
+        if (value && value >= 1) {
+          const updated = await store.upsertGoal(year, 'book', value);
+          const idx = goals.findIndex((g) => g.year === year && g.media_type === 'book');
+          if (idx !== -1) goals[idx] = updated;
+          else goals.push(updated);
+        }
+        renderGoalYear(year); // revert to display mode either way
+      };
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') input.blur();
+      };
+    } else {
+      el('goalEditBtn').onclick = () => renderGoalYear(year, true);
+    }
   }
 
   const toggle = el('goalYearToggle');
