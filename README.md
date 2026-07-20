@@ -191,6 +191,26 @@ drop policy if exists "Users can delete their own steam account" on public.steam
 create policy "Users can delete their own steam account" on public.steam_accounts for delete using (auth.uid() = user_id);
 ```
 
+There's also a `libby_settings` table, used by the [Libby link on Backlog
+books](#importing-your-data) — likewise safe to run on its own, any time:
+
+```sql
+create table if not exists public.libby_settings (
+  user_id      uuid primary key references auth.users (id) on delete cascade,
+  library_code text not null,
+  updated_at   timestamptz not null default now()
+);
+alter table public.libby_settings enable row level security;
+drop policy if exists "Users can view their own libby settings" on public.libby_settings;
+create policy "Users can view their own libby settings" on public.libby_settings for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own libby settings" on public.libby_settings;
+create policy "Users can insert their own libby settings" on public.libby_settings for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own libby settings" on public.libby_settings;
+create policy "Users can update their own libby settings" on public.libby_settings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own libby settings" on public.libby_settings;
+create policy "Users can delete their own libby settings" on public.libby_settings for delete using (auth.uid() = user_id);
+```
+
 ## Setting up movie & TV search (TMDb)
 
 1. Create a free account at [themoviedb.org](https://www.themoviedb.org).
@@ -295,6 +315,11 @@ Under the account menu (👤 in the header) → **Import / Export**, you can:
   games sync into Backlog automatically every day — see [Setting up
   Steam wishlist sync](#setting-up-steam-wishlist-sync) above (requires
   a connected Supabase project and a small one-time setup step).
+- **Libby**: save your library's short code (found in the Libby app under
+  your library card, or in the URL when you search on
+  [libbyapp.com](https://libbyapp.com)) and a "Find on Libby" link shows
+  up on backlog books, jumping straight to a search for that title at
+  your library. Works in Demo Mode too — no server setup needed.
 
 Every import shows a preview (how many items will be added vs. skipped as
 already-in-your-library duplicates) before anything is written. Imported

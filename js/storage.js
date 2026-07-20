@@ -5,6 +5,7 @@
 const DEMO_USER_ID = 'demo-user';
 const DEMO_KEY = 'mediaJournal.demo.items';
 const DEMO_GOALS_KEY = 'mediaJournal.demo.goals';
+const DEMO_LIBBY_KEY = 'mediaJournal.demo.libbyLibrary';
 
 function isConfigured(cfg) {
   return (
@@ -186,6 +187,18 @@ class DemoStore {
   async syncSteamWishlist() {
     throw new Error('Steam sync needs a connected Supabase project — configure it in js/config.js.');
   }
+
+  // Unlike Steam sync, the Libby link is just a link — no server call
+  // involved — so it works in Demo Mode too, backed by a plain
+  // localStorage string rather than the array-of-rows pattern above.
+  async getLibbyLibrary() {
+    return localStorage.getItem(DEMO_LIBBY_KEY) || null;
+  }
+
+  async setLibbyLibrary(libraryCode) {
+    localStorage.setItem(DEMO_LIBBY_KEY, libraryCode);
+    return libraryCode;
+  }
 }
 
 class SupabaseStore {
@@ -339,6 +352,26 @@ class SupabaseStore {
       .single();
     if (error) throw error;
     return data;
+  }
+
+  async getLibbyLibrary() {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client.from('libby_settings').select('*').eq('user_id', user_id).maybeSingle();
+    if (error) throw error;
+    return data ? data.library_code : null;
+  }
+
+  async setLibbyLibrary(libraryCode) {
+    const { data: sessionData } = await this.client.auth.getSession();
+    const user_id = sessionData.session.user.id;
+    const { data, error } = await this.client
+      .from('libby_settings')
+      .upsert({ user_id, library_code: libraryCode }, { onConflict: 'user_id' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data.library_code;
   }
 
   // Calls the sync-steam-wishlist Edge Function (supabase/functions/

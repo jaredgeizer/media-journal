@@ -53,6 +53,10 @@ const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
 
 const store = createStore();
 let items = [];
+// Preloaded in loadItems() so openEditModal() can build the Libby link
+// synchronously — a saved library code rarely changes, so there's no need
+// to fetch it fresh on every modal open.
+let libbyLibraryCode = null;
 let backlogSelectedTags = new Set();
 let journalSelectedTags = new Set();
 let journalSelectedRatings = new Set();
@@ -193,6 +197,11 @@ async function migrateFavoriteTag() {
 async function loadItems() {
   items = await store.listItems();
   await migrateFavoriteTag();
+  try {
+    libbyLibraryCode = await store.getLibbyLibrary();
+  } catch {
+    libbyLibraryCode = null; // link just won't render; not worth blocking load over
+  }
   renderBacklog();
   renderJournal();
   // Not awaited — these make their own network/storage calls and shouldn't
@@ -416,6 +425,17 @@ function externalLinkHtml(item) {
   const label = EXTERNAL_LINK_LABEL[item.external_source];
   if (!label || !item.external_url) return '';
   return `<a href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
+}
+
+// Libby has no library-agnostic deep link — every search URL is scoped to
+// a specific library from the start — so this only renders once the user
+// has saved their library's short code (Account → Import/Export → Libby).
+// Only offered for backlog books; a finished book has nothing to hold.
+function libbyLinkHtml(item) {
+  if (item.media_type !== 'book' || item.status !== 'wishlist' || !libbyLibraryCode) return '';
+  const query = [item.title, item.creator].filter(Boolean).join(' ');
+  const url = `https://libbyapp.com/search/${encodeURIComponent(libbyLibraryCode)}/search/scope-auto/query-${encodeURIComponent(query)}/page-1`;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="external-link">Find on Libby</a>`;
 }
 
 function descriptionHtml(text, id) {
@@ -2164,6 +2184,14 @@ async function openImportExportModal() {
       <input type="file" accept=".zip" id="letterboxdFile">
     </div>
     ${steamFieldHtml}
+    <div class="field">
+      <label>Libby</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">Your library's short code — find it in the Libby app under your library card, or in the URL when you search on <a href="https://libbyapp.com" target="_blank" rel="noopener">libbyapp.com</a>. Once saved, backlog books get a "Find on Libby" link.</p>
+      <input type="text" id="libbyLibraryInput" placeholder="Library code" value="${escapeHtml(libbyLibraryCode || '')}">
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="saveLibbyLibraryBtn" style="width:100%;">Save</button>
+      </div>
+    </div>
     <div id="importNotice" class="notice warn hidden"></div>
   `;
   openModalWithContent(html);
@@ -2204,6 +2232,20 @@ async function openImportExportModal() {
       openImportPreviewModal('Letterboxd', await parseLetterboxdZip(await file.arrayBuffer()));
     } catch (err) {
       showImportError(err);
+    }
+  });
+
+  el('saveLibbyLibraryBtn').addEventListener('click', async () => {
+    const value = el('libbyLibraryInput').value.trim();
+    if (!value) return showImportError(new Error('Enter your library code first.'));
+    const btn = el('saveLibbyLibraryBtn');
+    btn.disabled = true;
+    try {
+      libbyLibraryCode = await store.setLibbyLibrary(value);
+    } catch (err) {
+      showImportError(err);
+    } finally {
+      btn.disabled = false;
     }
   });
 
@@ -2307,7 +2349,7 @@ function openEditModal(item) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    ${externalLinkHtml(current)}
+    <div class="modal-links">${externalLinkHtml(current)}${libbyLinkHtml(current)}</div>
     ${descriptionHtml(current.description, 'editDescription')}
     ${
       current.status === 'wishlist' && !current.poster_url

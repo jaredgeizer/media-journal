@@ -179,3 +179,37 @@ drop policy if exists "Users can delete their own steam account" on public.steam
 create policy "Users can delete their own steam account"
   on public.steam_accounts for delete
   using (auth.uid() = user_id);
+
+-- Libby has no library-agnostic deep link — every search URL is scoped to
+-- a specific library from the start — so a book's "Find on Libby" link
+-- (Backlog item modal) needs the user's home library code saved here
+-- first (Account → Import/Export → "Libby"). Purely a client-side lookup,
+-- no Edge Function involved.
+create table if not exists public.libby_settings (
+  user_id      uuid primary key references auth.users (id) on delete cascade,
+  library_code text not null,
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.libby_settings enable row level security;
+
+drop policy if exists "Users can view their own libby settings" on public.libby_settings;
+create policy "Users can view their own libby settings"
+  on public.libby_settings for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert their own libby settings" on public.libby_settings;
+create policy "Users can insert their own libby settings"
+  on public.libby_settings for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own libby settings" on public.libby_settings;
+create policy "Users can update their own libby settings"
+  on public.libby_settings for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own libby settings" on public.libby_settings;
+create policy "Users can delete their own libby settings"
+  on public.libby_settings for delete
+  using (auth.uid() = user_id);
