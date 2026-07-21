@@ -40,13 +40,13 @@ const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', g
 const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
-const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season', '📉 Dropped'];
+const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season', 'Dropped'];
 // New Season and Dropped only ever mean anything for a TV show cycling
 // back to Backlog on its own (see checkForNewTvSeasons() and
 // checkForStaleProgress()) — offering them as pickable tags on a
 // movie/book/etc. would just be confusing, so both are excluded from the
 // edit modal's tag chips for every other media type.
-const TV_ONLY_BACKLOG_TAGS = ['🆕 New Season', '📉 Dropped'];
+const TV_ONLY_BACKLOG_TAGS = ['🆕 New Season', 'Dropped'];
 function backlogTagsFor(mediaType) {
   return mediaType === 'tv' ? BACKLOG_TAGS : BACKLOG_TAGS.filter((t) => !TV_ONLY_BACKLOG_TAGS.includes(t));
 }
@@ -644,7 +644,7 @@ async function checkForStaleProgress() {
     }
     if (daysSinceUpdate >= STALE_MOVE_DAYS) {
       patch.status = 'wishlist';
-      patch.tags = [...new Set([...(item.tags || []), '📉 Dropped'])];
+      patch.tags = [...new Set([...(item.tags || []), 'Dropped'])];
     }
     if (Object.keys(patch).length === 0) continue;
     try {
