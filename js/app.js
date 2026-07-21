@@ -2690,6 +2690,21 @@ function openReviewModal(item) {
   });
 }
 
+// Discover's results grid (up to a couple dozen poster images) stays fully
+// mounted behind the Add modal — switching tabs only hides it with CSS, it
+// isn't actually removed until the next search overwrites it. Saving an
+// item immediately triggers a full renderBacklog()/renderJournal() rebuild
+// (real poster images for the destination list too), so for anyone with a
+// large library this is real, avoidable memory pressure stacking right on
+// top of that rebuild, at exactly the moment it matters least — the same
+// category of problem CLEANUP_BATCH_SIZE exists to avoid for Clean Up.
+// Every action here always navigates away from Discover, so there's
+// nothing lost by dropping it now instead of waiting for the next search.
+function freeDiscoverResults() {
+  el('discoverResults').innerHTML = '';
+  el('discoverEmpty').classList.remove('hidden');
+}
+
 function openAddModal(prefill = {}) {
   const isManual = !prefill.title;
   const posterBlock = prefill.poster_url
@@ -2781,6 +2796,7 @@ function openAddModal(prefill = {}) {
     try {
       const saved = await store.addItem({ ...draft, status: 'wishlist' });
       items.unshift(saved);
+      freeDiscoverResults();
       renderBacklog();
       renderJournal();
       closeModal();
@@ -2803,6 +2819,7 @@ function openAddModal(prefill = {}) {
       const progress = PERCENT_PROGRESS_TYPES.includes(draft.media_type) ? { progress_percent: 0 } : { progress_season: 1, progress_episode: 1 };
       const saved = await store.addItem({ ...draft, status: 'in_progress', ...progress });
       items.unshift(saved);
+      freeDiscoverResults();
       renderBacklog();
       renderJournal();
       closeModal();
@@ -2831,6 +2848,7 @@ function openAddModal(prefill = {}) {
         date_completed: new Date().toISOString(),
       });
       items.unshift(saved);
+      freeDiscoverResults();
       renderBacklog();
       renderJournal();
       switchTab('journal');
