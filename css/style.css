@@ -1394,6 +1394,16 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   .notice.warn { color: #ffcf7a; }
 }
 
+.fallback-notice {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 999;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  margin-bottom: 0;
+}
+
 .demo-banner {
   text-align: center;
   padding: 10px 16px;

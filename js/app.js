@@ -2864,17 +2864,30 @@ async function markItemCompleted(item, extraPatch = {}) {
 
 // The item is already safely saved by the time this runs — if building the
 // review UI itself fails for some reason, don't leave the user stranded
-// wondering whether the save even happened. Falls back to a plain alert()
-// rather than another modal, since it can't assume any particular DOM
-// state still exists at the point of failure.
+// wondering whether the save even happened.
 function openReviewModalSafely(item) {
   try {
     openReviewModal(item);
   } catch (err) {
     console.error('Failed to open the review modal:', err);
     closeModal();
-    alert(`"${item.title}" was saved to your Journal, but the review screen couldn't open. Tap it in your Journal to add a rating or notes.`);
+    showFallbackNotice(`"${item.title}" was saved to your Journal, but the review screen couldn't open. Tap it in your Journal to add a rating or notes.`);
   }
+}
+
+// A plain alert() only ever runs this deep into an async chain (well past
+// the original tap), and some browsers can silently swallow dialogs
+// triggered that far removed from the user gesture that started it —
+// worse than useless for a message whose whole point is "don't worry, it
+// saved." A banner appended straight to <body> works no matter what state
+// the modal system is in and can't be suppressed the same way.
+function showFallbackNotice(message) {
+  const notice = document.createElement('div');
+  notice.className = 'notice warn fallback-notice';
+  notice.textContent = message;
+  notice.addEventListener('click', () => notice.remove());
+  document.body.appendChild(notice);
+  setTimeout(() => notice.remove(), 8000);
 }
 
 el('manualAddBtn').addEventListener('click', () => openAddModal({}));
