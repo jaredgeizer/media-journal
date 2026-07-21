@@ -122,6 +122,7 @@ alter table public.items add column if not exists notified_season_at timestamptz
 alter table public.items add column if not exists notified_release_soon_at timestamptz;
 alter table public.items add column if not exists notified_release_soon_days smallint;
 alter table public.items add column if not exists notified_release_day_at timestamptz;
+alter table public.items add column if not exists notified_stale_progress_at timestamptz;
 ```
 
 There's also a `goals` table (used by the Account page's yearly goals) —

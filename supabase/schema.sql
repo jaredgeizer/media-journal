@@ -41,6 +41,7 @@ create table if not exists public.items (
   notified_release_soon_at   timestamptz,
   notified_release_soon_days smallint,
   notified_release_day_at    timestamptz,
+  notified_stale_progress_at timestamptz,
 
   date_added     timestamptz not null default now(),
   date_completed timestamptz,

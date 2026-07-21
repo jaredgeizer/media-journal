@@ -40,13 +40,15 @@ const CURRENTLY_LABEL = { book: 'Currently Reading', tv: 'Currently Watching', g
 const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
-const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season'];
-// New Season only ever means anything for a TV show cycling back to
-// Backlog (see checkForNewTvSeasons()) — offering it as a pickable tag on
-// a movie/book/etc. would just be confusing, so it's excluded from the
+const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season', '📉 Dropped'];
+// New Season and Dropped only ever mean anything for a TV show cycling
+// back to Backlog on its own (see checkForNewTvSeasons() and
+// checkForStaleProgress()) — offering them as pickable tags on a
+// movie/book/etc. would just be confusing, so both are excluded from the
 // edit modal's tag chips for every other media type.
+const TV_ONLY_BACKLOG_TAGS = ['🆕 New Season', '📉 Dropped'];
 function backlogTagsFor(mediaType) {
-  return mediaType === 'tv' ? BACKLOG_TAGS : BACKLOG_TAGS.filter((t) => t !== '🆕 New Season');
+  return mediaType === 'tv' ? BACKLOG_TAGS : BACKLOG_TAGS.filter((t) => !TV_ONLY_BACKLOG_TAGS.includes(t));
 }
 const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'];
 const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
@@ -208,6 +210,7 @@ async function loadItems() {
   // delay first paint; each re-renders itself once done.
   checkForNewTvSeasons();
   checkForUpcomingReleases();
+  checkForStaleProgress();
 }
 
 el('signOutBtn').addEventListener('click', async () => {
@@ -610,6 +613,49 @@ async function checkForNewTvSeasons() {
       // rejection and silently take out the rest of the batch — this runs
       // fire-and-forget with no UI to surface an error into.
       console.warn('checkForNewTvSeasons: failed to update', item.id, err);
+    }
+  }
+  if (changed) {
+    renderBacklog();
+    renderJournal();
+  }
+}
+
+// TV only for now (books/games could follow the same pattern later).
+// Uses each item's own updated_at as the "last progress logged" signal —
+// for an in_progress show, nothing but the progress controls themselves
+// can change it (see openEditModal's in_progress branch: no tags, notes,
+// or rating UI exists for that status), so it's an accurate proxy
+// without a dedicated field. Both thresholds are checked independently
+// so a user who skips several months entirely still gets the notice
+// recorded even though the move fires in the same pass.
+const STALE_NOTICE_DAYS = 60;
+const STALE_MOVE_DAYS = 90;
+
+async function checkForStaleProgress() {
+  const candidates = items.filter((i) => i.media_type === 'tv' && i.status === 'in_progress');
+  let changed = false;
+  const now = new Date();
+  for (const item of candidates) {
+    const daysSinceUpdate = Math.floor((now - new Date(item.updated_at)) / 86400000);
+    const patch = {};
+    if (daysSinceUpdate >= STALE_NOTICE_DAYS && !item.notified_stale_progress_at) {
+      patch.notified_stale_progress_at = now.toISOString();
+    }
+    if (daysSinceUpdate >= STALE_MOVE_DAYS) {
+      patch.status = 'wishlist';
+      patch.tags = [...new Set([...(item.tags || []), '📉 Dropped'])];
+    }
+    if (Object.keys(patch).length === 0) continue;
+    try {
+      const updated = await store.updateItem(item.id, patch);
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) items[idx] = updated;
+      changed = true;
+    } catch (err) {
+      // Same reasoning as checkForNewTvSeasons(): fire-and-forget, no UI
+      // to surface an error into, so one bad write shouldn't kill the batch.
+      console.warn('checkForStaleProgress: failed to update', item.id, err);
     }
   }
   if (changed) {
@@ -1090,6 +1136,9 @@ function notificationEvents() {
     }
     if (item.notified_release_day_at) {
       events.push({ item, at: item.notified_release_day_at, message: 'Out now' });
+    }
+    if (item.notified_stale_progress_at) {
+      events.push({ item, at: item.notified_stale_progress_at, message: 'No progress in 2 months' });
     }
   }
   events.sort((a, b) => new Date(b.at) - new Date(a.at));
