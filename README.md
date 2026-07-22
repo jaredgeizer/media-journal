@@ -117,14 +117,24 @@ alter table public.items drop constraint if exists items_status_check;
 alter table public.items add constraint items_status_check check (status in ('wishlist', 'in_progress', 'completed'));
 alter table public.items drop constraint if exists items_media_type_check;
 alter table public.items add constraint items_media_type_check check (media_type in ('movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'));
-alter table public.items add column if not exists release_date date;
+alter table public.items add column if not exists release_date text;
 alter table public.items add column if not exists notified_season_at timestamptz;
 alter table public.items add column if not exists notified_release_soon_at timestamptz;
 alter table public.items add column if not exists notified_release_soon_days smallint;
 alter table public.items add column if not exists notified_release_day_at timestamptz;
 alter table public.items add column if not exists notified_stale_progress_at timestamptz;
 alter table public.items add column if not exists release_date_checked_at timestamptz;
+alter table public.items alter column release_date type text using release_date::text;
 ```
+
+That last line matters even if you already had `release_date` — it was
+originally a `date` column, which rejects a partial date like `"2021-10"`
+(year-month, no day) with `invalid input syntax for type date`. Some
+sources (Google Books, MusicBrainz) only ever have a partial date for
+less-cataloged entries, so this shows up as a real "add to Backlog"
+failure for certain books/albums. Widening the column to `text` (already
+how the app treats this field everywhere client-side) fixes it — safe to
+run even if the column's already `text`.
 
 There's also a `goals` table (used by the Account page's yearly goals) —
 this one's a separate block since it creates a whole table rather than

@@ -2978,6 +2978,7 @@ function updateDiscoverMergeNotice() {
 // item has no known type yet.
 function startDiscoverMerge(item) {
   switchTab('discover');
+  window.scrollTo(0, 0);
   discoverMergeTargetId = item.id;
   el('discoverQuery').value = item.title;
   el('discoverTypeChips').dataset.value = 'all';

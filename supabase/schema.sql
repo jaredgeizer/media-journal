@@ -31,12 +31,21 @@ create table if not exists public.items (
   progress_season   smallint,                                            -- TV shows
   progress_episode  smallint,                                            -- TV shows
 
-  -- release date (movies only, from TMDb) and notification-log bookkeeping:
-  -- each *_at column is set once, the first time that notification fires
-  -- for this item, so it never repeats. notified_release_soon_days freezes
-  -- how many days were left at that moment, since the countdown itself
-  -- keeps moving but the notification text shouldn't change after the fact.
-  release_date               date,
+  -- release date and notification-log bookkeeping: each *_at column is
+  -- set once, the first time that notification fires for this item, so
+  -- it never repeats. notified_release_soon_days freezes how many days
+  -- were left at that moment, since the countdown itself keeps moving
+  -- but the notification text shouldn't change after the fact.
+  --
+  -- release_date is `text`, not `date` — some sources (Google Books,
+  -- MusicBrainz) only give a partial date for less-cataloged entries
+  -- (e.g. "2021-10", year-month with no day), which a real `date` column
+  -- rejects outright ("invalid input syntax for type date"). The app
+  -- already treats this field as a loosely-formatted string everywhere
+  -- (hasReleaseMonth(), modalDateLabel(), dateInputValue() in js/app.js)
+  -- rather than relying on Postgres date validation/arithmetic, so a
+  -- plain text column matches how it's actually used.
+  release_date               text,
   -- Set whenever Clean Up searches for a release date and finds nothing
   -- more precise than what's already stored (e.g. an unreleased title
   -- with only a bare year known) — lets it stop re-suggesting a "fix"
