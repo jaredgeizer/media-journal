@@ -1682,7 +1682,7 @@ function cleanupRowHtml(item) {
           needsDate
             ? `<div class="field cleanup-date-field">
                 <label>Date ${COMPLETED_VERB[item.media_type] || 'Done'}</label>
-                <input type="date" data-cleanup-date>
+                <input type="date" data-cleanup-date min="${minWatchedDateValue(item)}">
               </div>`
             : ''
         }
@@ -2548,6 +2548,15 @@ function openEditModal(item) {
 // wrong calendar day for about half the world's timezones.
 function dateInputValue(iso) {
   if (!iso) return '';
+  // A bare date-only string (release_date is a Postgres `date` column,
+  // sometimes just "YYYY-MM" for partial book/album dates) has no
+  // timezone to begin with — extract its digits directly rather than
+  // routing it through new Date(), which parses a date-only string as
+  // UTC midnight and can land on the wrong calendar day for anyone west
+  // of UTC. A full timestamp (date_completed always has a time
+  // component) doesn't match this and falls through unchanged below.
+  const dateOnly = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(iso);
+  if (dateOnly) return `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3] || '01'}`;
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -2556,6 +2565,13 @@ function dateInputToIso(value) {
   if (!value) return null;
   const [y, m, d] = value.split('-').map(Number);
   return new Date(y, m - 1, d).toISOString();
+}
+
+// A month-less release_date isn't precise enough to justify blocking
+// dates against (same bar hasReleaseMonth() already sets elsewhere for
+// "is this release_date usable") — no min in that case, same as today.
+function minWatchedDateValue(item) {
+  return hasReleaseMonth(item) ? dateInputValue(item.release_date) : '';
 }
 
 function openReviewModal(item) {
@@ -2577,7 +2593,7 @@ function openReviewModal(item) {
     </div>
     <div class="field">
       <label for="reviewDateCompleted">Date ${COMPLETED_VERB[current.media_type] || 'Done'}</label>
-      <input type="date" id="reviewDateCompleted" value="${dateInputValue(current.date_completed)}">
+      <input type="date" id="reviewDateCompleted" value="${dateInputValue(current.date_completed)}" min="${minWatchedDateValue(current)}">
     </div>
     ${reactionTagsFieldHtml('reviewTagChips', current.media_type, current.tags || [])}
     <div class="field">
