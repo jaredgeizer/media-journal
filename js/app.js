@@ -424,6 +424,28 @@ function hasReleaseMonth(item) {
   return /^\d{4}-\d{2}/.test(item.release_date || '');
 }
 
+// How long to leave a confirmed-not-yet-precise release date alone before
+// checking again — long enough to stop nagging about something that isn't
+// going to change day to day, short enough to pick it back up once the
+// real date is eventually announced.
+const RELEASE_DATE_RECHECK_DAYS = 30;
+
+function releaseDateRecentlyChecked(item) {
+  if (!item.release_date_checked_at) return false;
+  const daysSince = (Date.now() - new Date(item.release_date_checked_at)) / 86400000;
+  return daysSince < RELEASE_DATE_RECHECK_DAYS;
+}
+
+// The "does this item have an actionable release-date gap" check used
+// everywhere Clean Up decides whether to flag/search/re-suggest a fix —
+// distinct from hasReleaseMonth() itself, which stays a pure precision
+// check and keeps its other jobs unchanged (display formatting in
+// modalDateLabel(), the backfill-eligibility guard in applyCleanupMatch(),
+// the release-date picker min in minWatchedDateValue()).
+function needsReleaseDateFix(item) {
+  return !hasReleaseMonth(item) && !releaseDateRecentlyChecked(item);
+}
+
 function externalLinkHtml(item) {
   const label = EXTERNAL_LINK_LABEL[item.external_source];
   if (!label || !item.external_url) return '';
@@ -1487,7 +1509,7 @@ const CLEANUP_BATCH_SIZE = 40;
 
 function cleanupCandidates(status) {
   return items.filter(
-    (i) => i.status === status && (!i.poster_url || !hasReleaseMonth(i) || (status === 'completed' && !i.date_completed))
+    (i) => i.status === status && (!i.poster_url || needsReleaseDateFix(i) || (status === 'completed' && !i.date_completed))
   );
 }
 
@@ -1649,7 +1671,7 @@ async function loadCleanupMatch(item) {
   // was actually built for, independent of whatever the item looks like by
   // the time the match result comes back.
   const needsPoster = !item.poster_url;
-  const needsReleaseDate = !hasReleaseMonth(item);
+  const needsReleaseDate = needsReleaseDateFix(item);
   let match = null;
   try {
     const { results } = await searchExternal(item.title, item.media_type);
@@ -1658,6 +1680,40 @@ async function loadCleanupMatch(item) {
     match = null;
   }
   if (!document.body.contains(slot)) return; // row was removed/resolved while the search was in flight
+
+  // A match that's just as imprecise as what's already stored (e.g. an
+  // unreleased title TMDb/RAWG itself only has a bare year for) isn't
+  // something re-running the same search again is going to improve on.
+  // Recording that we checked stops it from being re-suggested as an
+  // actionable "Use this match" — which would otherwise apply nothing and
+  // just reappear every time Clean Up opens — for a while, then quietly
+  // checks again later in case the real date has since been confirmed
+  // upstream. No match at all is a different, already-handled case (the
+  // existing "No automatic match found" path below) — left alone here.
+  if (needsReleaseDate && match && !hasReleaseMonth(match)) {
+    try {
+      const updated = await store.updateItem(item.id, { release_date_checked_at: new Date().toISOString() });
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) items[idx] = updated;
+      item = updated;
+    } catch (err) {
+      console.warn('loadCleanupMatch: failed to record release_date_checked_at', item.id, err);
+    }
+    if (!needsPoster) {
+      // Nothing else this row could still gain from a match — drop it,
+      // same as a fully-resolved row, instead of showing a "fix" that
+      // would apply nothing.
+      slot.remove();
+      maybeRemoveResolvedRow(item);
+      updateCleanupApplyAllBtn();
+      return;
+    }
+    // Poster's still missing and this match has one — worth applying for
+    // that alone; falls through to the normal render below, which already
+    // labels it "Use this poster" (cleanupMatchButtonLabel keys off
+    // needsPoster) rather than implying it fixes the date too.
+  }
+
   if (match) {
     slot.innerHTML = cleanupMatchSuggestionHtml(match, needsPoster);
     wireCleanupMatchActions(slot, item, match, needsPoster, needsReleaseDate);
@@ -1670,7 +1726,7 @@ async function loadCleanupMatch(item) {
 
 function cleanupRowHtml(item) {
   const needsPoster = !item.poster_url;
-  const needsReleaseDate = !hasReleaseMonth(item);
+  const needsReleaseDate = needsReleaseDateFix(item);
   const needsDate = item.status === 'completed' && !item.date_completed;
   return `
     <div class="cleanup-row glass" data-item-id="${item.id}">
@@ -2165,7 +2221,7 @@ function openCleanupModal(status) {
     if (item) wireCleanupNoMatch(btn.closest('[data-match-slot]'), item);
   });
 
-  const searchable = candidates.filter((i) => (!i.poster_url || !hasReleaseMonth(i)) && SEARCHABLE_TYPES.includes(i.media_type));
+  const searchable = candidates.filter((i) => (!i.poster_url || needsReleaseDateFix(i)) && SEARCHABLE_TYPES.includes(i.media_type));
   runWithConcurrency(searchable, 3, loadCleanupMatch);
 }
 

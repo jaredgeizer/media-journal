@@ -37,6 +37,12 @@ create table if not exists public.items (
   -- how many days were left at that moment, since the countdown itself
   -- keeps moving but the notification text shouldn't change after the fact.
   release_date               date,
+  -- Set whenever Clean Up searches for a release date and finds nothing
+  -- more precise than what's already stored (e.g. an unreleased title
+  -- with only a bare year known) — lets it stop re-suggesting a "fix"
+  -- that wouldn't actually change anything, then quietly check again
+  -- later. See RELEASE_DATE_RECHECK_DAYS in js/app.js.
+  release_date_checked_at    timestamptz,
   notified_season_at         timestamptz,
   notified_release_soon_at   timestamptz,
   notified_release_soon_days smallint,
