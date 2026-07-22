@@ -41,6 +41,13 @@ const PERCENT_PROGRESS_TYPES = ['book', 'game'];
 const EPISODE_PROGRESS_TYPES = ['tv'];
 const PROGRESS_TYPES = [...PERCENT_PROGRESS_TYPES, ...EPISODE_PROGRESS_TYPES];
 const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season', 'Dropped'];
+const SHORTLIST_TAG = '⭐ Shortlist';
+// Keeps each media type's Shortlist meaningful as an actual short list,
+// rather than most of the Backlog ending up tagged. Enforced as a soft cap
+// (see shortlistOverflowRedirect()) rather than blocking the tag outright,
+// since the item the user just picked is still the one they meant to
+// shortlist — the fix is trimming an older pick, not losing this one.
+const SHORTLIST_LIMIT = 4;
 // New Season and Dropped only ever mean anything for a TV show cycling
 // back to Backlog on its own (see checkForNewTvSeasons() and
 // checkForStaleProgress()) — offering them as pickable tags on a
@@ -49,6 +56,10 @@ const BACKLOG_TAGS = ['⭐ Shortlist', '👍 Recommended', '🆕 New Season', 'D
 const TV_ONLY_BACKLOG_TAGS = ['🆕 New Season', 'Dropped'];
 function backlogTagsFor(mediaType) {
   return mediaType === 'tv' ? BACKLOG_TAGS : BACKLOG_TAGS.filter((t) => !TV_ONLY_BACKLOG_TAGS.includes(t));
+}
+
+function shortlistCountForType(mediaType) {
+  return items.filter((i) => i.status === 'wishlist' && i.media_type === mediaType && (i.tags || []).includes(SHORTLIST_TAG)).length;
 }
 const ALL_TYPES = ['movie', 'tv', 'book', 'podcast', 'album', 'game', 'play', 'restaurant', 'other'];
 const QUICK_TAGS = { journal: ['❤️ Favorite'], backlog: ['⭐ Shortlist'] };
@@ -926,6 +937,35 @@ function renderBacklog() {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
   renderNotifications();
+  updateBacklogLimitNotice();
+}
+
+// Derived from the current filter state rather than a one-off flag from
+// whatever action opened this view — so it shows/self-clears correctly
+// whether the user landed here via shortlistOverflowRedirect() or just
+// filtered here on their own, and disappears the moment they trim the
+// category back to the limit.
+function updateBacklogLimitNotice() {
+  const notice = el('backlogLimitNotice');
+  const [singleType] = backlogSelectedTypes;
+  const viewingShortlistForOneType =
+    backlogSelectedTypes.size === 1 && backlogSelectedTags.size === 1 && backlogSelectedTags.has(SHORTLIST_TAG);
+  const overLimit = viewingShortlistForOneType && shortlistCountForType(singleType) > SHORTLIST_LIMIT;
+  notice.classList.toggle('hidden', !overLimit);
+  notice.textContent = overLimit
+    ? `Your Shortlist for ${TYPE_LABEL_PLURAL[singleType]} is over the ${SHORTLIST_LIMIT}-item limit — remove one to make room.`
+    : '';
+}
+
+// Called after shortlisting a category's (SHORTLIST_LIMIT + 1)th item —
+// takes the user straight to the crowded category so they can pick one to
+// remove, rather than leaving them to notice the overflow on their own.
+function shortlistOverflowRedirect(mediaType) {
+  switchTab('backlog');
+  backlogSelectedTypes = new Set([mediaType]);
+  backlogSelectedTags = new Set([SHORTLIST_TAG]);
+  syncFilterUI('backlog');
+  renderBacklog();
 }
 
 // Backlog's row-layout alternative to cardHtml — reuses Journal's
@@ -2544,7 +2584,16 @@ function openEditModal(item) {
 
   if (current.status === 'wishlist') {
     wireTagChips('editBacklogTagChips', () => {
-      persist({ tags: getActiveChipValues('editBacklogTagChips') });
+      const newTags = getActiveChipValues('editBacklogTagChips');
+      const justShortlisted = newTags.includes(SHORTLIST_TAG) && !(current.tags || []).includes(SHORTLIST_TAG);
+      const overLimit = justShortlisted && shortlistCountForType(current.media_type) >= SHORTLIST_LIMIT;
+      const mediaType = current.media_type;
+      persist({ tags: newTags }).then(() => {
+        if (overLimit) {
+          closeModal();
+          shortlistOverflowRedirect(mediaType);
+        }
+      });
     });
   }
 
