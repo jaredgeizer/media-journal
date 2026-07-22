@@ -16,7 +16,7 @@ create table if not exists public.items (
   description    text,
 
   -- where it came from (for search results pulled from an external API)
-  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'musicbrainz' | 'rawg' | 'steam' | 'manual'
+  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'musicbrainz' | 'rawg' | 'manual'
   external_id     text,
   external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 
@@ -142,43 +142,6 @@ create policy "Users can update their own goals"
 drop policy if exists "Users can delete their own goals" on public.goals;
 create policy "Users can delete their own goals"
   on public.goals for delete
-  using (auth.uid() = user_id);
-
--- Links a user to their Steam account for wishlist sync (Account →
--- Import/Export → "Steam Wishlist"). The sync-steam-wishlist Edge
--- Function reads steam_id here (either for just the calling user, via
--- their own JWT and normal RLS, or for every row here at once when
--- invoked by the scheduled GitHub Actions job, using the service role
--- key which bypasses RLS entirely) and writes new games straight into
--- items — nothing about sync progress needs to live in the app itself.
-create table if not exists public.steam_accounts (
-  user_id        uuid primary key references auth.users (id) on delete cascade,
-  steam_id       text not null,
-  last_synced_at timestamptz,
-  created_at     timestamptz not null default now()
-);
-
-alter table public.steam_accounts enable row level security;
-
-drop policy if exists "Users can view their own steam account" on public.steam_accounts;
-create policy "Users can view their own steam account"
-  on public.steam_accounts for select
-  using (auth.uid() = user_id);
-
-drop policy if exists "Users can insert their own steam account" on public.steam_accounts;
-create policy "Users can insert their own steam account"
-  on public.steam_accounts for insert
-  with check (auth.uid() = user_id);
-
-drop policy if exists "Users can update their own steam account" on public.steam_accounts;
-create policy "Users can update their own steam account"
-  on public.steam_accounts for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-drop policy if exists "Users can delete their own steam account" on public.steam_accounts;
-create policy "Users can delete their own steam account"
-  on public.steam_accounts for delete
   using (auth.uid() = user_id);
 
 -- Libby has no library-agnostic deep link — every search URL is scoped to

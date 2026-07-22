@@ -170,28 +170,6 @@ alter table public.goals drop constraint if exists goals_media_type_xor;
 alter table public.goals add constraint goals_media_type_xor check ((media_type is not null) <> (media_types is not null));
 ```
 
-There's also a `steam_accounts` table, used by [Steam wishlist
-sync](#setting-up-steam-wishlist-sync) — likewise safe to run on its own,
-any time:
-
-```sql
-create table if not exists public.steam_accounts (
-  user_id        uuid primary key references auth.users (id) on delete cascade,
-  steam_id       text not null,
-  last_synced_at timestamptz,
-  created_at     timestamptz not null default now()
-);
-alter table public.steam_accounts enable row level security;
-drop policy if exists "Users can view their own steam account" on public.steam_accounts;
-create policy "Users can view their own steam account" on public.steam_accounts for select using (auth.uid() = user_id);
-drop policy if exists "Users can insert their own steam account" on public.steam_accounts;
-create policy "Users can insert their own steam account" on public.steam_accounts for insert with check (auth.uid() = user_id);
-drop policy if exists "Users can update their own steam account" on public.steam_accounts;
-create policy "Users can update their own steam account" on public.steam_accounts for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-drop policy if exists "Users can delete their own steam account" on public.steam_accounts;
-create policy "Users can delete their own steam account" on public.steam_accounts for delete using (auth.uid() = user_id);
-```
-
 There's also a `libby_settings` table, used by the [Libby link on Backlog
 books](#importing-your-data) — likewise safe to run on its own, any time:
 
@@ -251,49 +229,6 @@ Free tier is 20,000 requests/month, plenty for personal use. RAWG asks
 that apps using their free API credit them — the footer already
 includes a "Game data from RAWG.io" line, so no extra setup needed there.
 
-## Setting up Steam wishlist sync
-
-Automatically adds newly-wishlisted Steam games to your Backlog once a
-day, with no action needed in the app. This only works with a connected
-Supabase project (not Demo Mode) and needs a bit of one-time setup,
-since Steam's wishlist data can't be fetched directly from the browser
-(no CORS headers) — a small Supabase Edge Function sits in front of it
-instead.
-
-1. **Deploy the function.** With the [Supabase
-   CLI](https://supabase.com/docs/guides/cli) installed and logged in:
-   ```sh
-   supabase link --project-ref <your-project-ref>
-   supabase functions deploy sync-steam-wishlist
-   ```
-2. **Set its secret** (a shared password only the scheduled sync job and
-   the function itself know — pick any long random string):
-   ```sh
-   supabase secrets set CRON_SECRET=<a-long-random-string>
-   ```
-3. **Add two repository secrets** on GitHub (repo → Settings → Secrets
-   and variables → Actions → New repository secret), so
-   `.github/workflows/sync-steam-wishlist.yml` can call the function on
-   a schedule:
-   - `STEAM_SYNC_URL` — `https://<your-project-ref>.supabase.co/functions/v1/sync-steam-wishlist`
-   - `STEAM_SYNC_CRON_SECRET` — the same string you set as `CRON_SECRET` in step 2
-4. **Set your wishlist to public**: Steam → Edit Profile → Privacy
-   Settings → Game details/Wishlist visibility → Public (needed for the
-   function to read it at all — Steam doesn't expose private wishlists
-   through any API).
-5. **Find your SteamID64**: look yourself up at
-   [steamid.io](https://steamid.io) and copy the "steamID64" value.
-6. In the app, account menu (👤) → **Import / Export** → **Steam
-   Wishlist**, paste your SteamID64, and either **Save** (just registers
-   it for tonight's automatic sync) or **Sync Now** (saves it and pulls
-   in new items immediately, through the same import-preview screen as
-   the CSV importers below).
-
-After that, the GitHub Actions workflow runs daily and adds anything new
-without you needing to open the app. Games get their Backlog poster from
-Steam's own header image automatically — no need to run Clean up Backlog
-on them afterward.
-
 ## Importing your data
 
 Under the account menu (👤 in the header) → **Import / Export**, you can:
@@ -312,10 +247,6 @@ Under the account menu (👤 in the header) → **Import / Export**, you can:
   and upload the `.zip` as-is — no need to unzip it first. Letterboxd's
   half-star ratings (0.5–5) are rounded to the nearest whole star to fit
   this app's 1–5 scale.
-- **Steam Wishlist**: connect your SteamID64 once and new wishlisted
-  games sync into Backlog automatically every day — see [Setting up
-  Steam wishlist sync](#setting-up-steam-wishlist-sync) above (requires
-  a connected Supabase project and a small one-time setup step).
 - **Libby**: save your library's short code (found in the Libby app under
   your library card, or in the URL when you search on
   [libbyapp.com](https://libbyapp.com)) and a "Find on Libby" link shows
