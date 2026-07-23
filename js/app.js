@@ -2430,7 +2430,7 @@ function openEditModal(item) {
     <div class="modal-links">${externalLinkHtml(current)}${libbyLinkHtml(current)}</div>
     ${descriptionHtml(current.description, 'editDescription')}
     ${
-      current.status === 'wishlist' && !current.poster_url
+      (current.status === 'wishlist' || current.status === 'completed') && (!current.poster_url || needsReleaseDateFix(current))
         ? `<button type="button" class="btn-secondary" id="updateInfoBtn" style="width:100%;margin-bottom:12px;">Update Info</button>`
         : ''
     }
@@ -3060,7 +3060,9 @@ async function mergeDiscoverResultIntoItem(itemId, result) {
   updateDiscoverMergeNotice();
   renderJournal();
   renderBacklog();
-  switchTab('backlog');
+  // Land back on whichever tab actually lists this item — Update Info can
+  // now be started from a completed Journal entry too, not just Backlog.
+  switchTab(updated.status === 'wishlist' ? 'backlog' : 'journal');
   openEditModal(updated);
 }
 
