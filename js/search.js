@@ -44,8 +44,34 @@ async function getSeasonEpisodeGroup(tmdbId, token) {
     const seasons = (detail.groups || [])
       .slice()
       .sort((a, b) => a.order - b.order)
-      .map((g, idx) => ({ seasonNumber: idx + 1, episodeCount: (g.episodes || []).length }));
+      .map((g, idx) => ({
+        seasonNumber: idx + 1,
+        episodeCount: (g.episodes || []).length,
+        // Already in this response for free — no extra request needed,
+        // unlike the raw-breakdown path (see getSeasonEpisodeNames below).
+        episodeNames: (g.episodes || []).map((e) => e.name || null),
+      }));
     return seasons.length ? { seasons } : null;
+  } catch {
+    return null;
+  }
+}
+
+// Episode names for a single season, TV Details endpoint — used for
+// raw-breakdown shows only (episode-group shows already carry names on
+// `seasons[n].episodeNames`, see getSeasonEpisodeGroup above). Fetched
+// lazily per season by the caller rather than for a whole show up front,
+// since only the currently-watched season is ever displayed at once.
+export async function getSeasonEpisodeNames(tmdbId, seasonNumber) {
+  const token = tmdbToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.episodes || []).map((e) => e.name || null);
   } catch {
     return null;
   }

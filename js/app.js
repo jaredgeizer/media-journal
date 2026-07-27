@@ -1,5 +1,5 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, SEARCHABLE_TYPES } from './search.js';
+import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, getSeasonEpisodeNames, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
@@ -611,6 +611,25 @@ async function getSeasonInfoCached(item) {
   return info;
 }
 
+const seasonEpisodeNamesCache = new Map();
+
+// Group-based shows already carry names on `info.seasons[n].episodeNames`
+// (fetched for free alongside counts). Raw-based shows need a lazy,
+// per-season fetch — cached so switching back to a season already viewed
+// this session doesn't refetch.
+async function getEpisodeName(item, info, season, episode) {
+  const seasonInfo = info && info.seasons.find((s) => s.seasonNumber === season);
+  if (seasonInfo && seasonInfo.episodeNames) return seasonInfo.episodeNames[episode - 1] || null;
+  const tmdbId = tmdbTvId(item);
+  if (!tmdbId) return null;
+  const key = `${tmdbId}-${season}`;
+  if (!seasonEpisodeNamesCache.has(key)) {
+    seasonEpisodeNamesCache.set(key, getSeasonEpisodeNames(tmdbId, season));
+  }
+  const names = await seasonEpisodeNamesCache.get(key);
+  return names ? names[episode - 1] || null : null;
+}
+
 // Completed shows can gain new seasons after you finish them. Once TMDb
 // reports a season beyond the one you last watched, move the show back to
 // Backlog — rating/notes are left untouched (this isn't a "start over",
@@ -802,6 +821,7 @@ function progressFieldHtml(item) {
           <input type="number" inputmode="numeric" pattern="[0-9]*" id="editProgressEpisode" min="1" value="${episode}">
           <span class="progress-subtext" id="editEpisodeTotal"></span>
         </div>
+        <p class="progress-subtext" id="editEpisodeName"></p>
       </div>`;
   }
   return '';
@@ -2545,6 +2565,22 @@ function openEditModal(item) {
       const seasonSelect = turnIntoSelect(seasonInputEl);
       setSelectOptions(seasonSelect, info.seasons.length, parseInt(seasonInputEl.value, 10) || 1);
 
+      // Guards against a slower earlier lookup (e.g. a raw-breakdown show's
+      // lazy per-season fetch) resolving after a newer season/episode
+      // change and clobbering the name with stale data.
+      let episodeNameRequestId = 0;
+      const updateEpisodeName = () => {
+        const nameEl = el('editEpisodeName');
+        if (!nameEl) return;
+        const seasonNum = parseInt(seasonSelect.value, 10) || 1;
+        const episodeNum = parseInt((episodeSelect || episodeInputEl).value, 10) || 1;
+        const requestId = ++episodeNameRequestId;
+        getEpisodeName(current, info, seasonNum, episodeNum).then((name) => {
+          if (requestId !== episodeNameRequestId) return;
+          nameEl.textContent = name || '';
+        });
+      };
+
       let episodeSelect = null;
       const updateEpisodeOptions = () => {
         const epCount = episodeCountForSeason(info, parseInt(seasonSelect.value, 10) || 1);
@@ -2555,13 +2591,16 @@ function openEditModal(item) {
         setSelectOptions(episodeSelect, epCount, currentEpisode);
         episodeSelect.onchange = (e) => {
           persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
+          updateEpisodeName();
         };
       };
       updateEpisodeOptions();
+      updateEpisodeName();
 
       seasonSelect.addEventListener('change', (e) => {
         persist({ progress_season: parseInt(e.target.value, 10) || 1 });
         updateEpisodeOptions();
+        updateEpisodeName();
       });
     });
   }
