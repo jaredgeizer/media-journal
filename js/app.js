@@ -638,16 +638,34 @@ async function getEpisodeName(item, info, season, episode) {
 // tags it with 🆕 New Season (a BACKLOG_TAGS entry, same lifecycle as
 // Shortlist/Recommended: toggleable in the edit modal, filterable in
 // Backlog, and auto-stripped once the show is marked watched again).
-// Only covers shows tracked through Currently Watching (progress_season
-// recorded) with a TMDb id; see the plan notes for why that's a known gap.
 async function checkForNewTvSeasons() {
-  const candidates = items.filter(
-    (i) => i.media_type === 'tv' && i.status === 'completed' && i.progress_season != null && tmdbTvId(i)
-  );
+  const candidates = items.filter((i) => i.media_type === 'tv' && i.status === 'completed' && tmdbTvId(i));
   let changed = false;
   for (const item of candidates) {
     const info = await getSeasonInfoCached(item);
-    if (!info || info.seasons.length <= item.progress_season) continue;
+    if (!info) continue;
+    // A show marked watched directly (not via Currently Watching) never had
+    // progress_season recorded, so there's no season it can be "behind" —
+    // there's no history of what it actually was caught up to. Baseline it
+    // to the current count quietly instead of guessing; a real new season
+    // will be caught on a later check once this baseline is in place. Same
+    // "record now, act on future changes" shape as
+    // release_date_checked_at/releaseDateRecentlyChecked() elsewhere in
+    // this file.
+    if (item.progress_season == null) {
+      try {
+        const updated = await store.updateItem(item.id, {
+          progress_season: info.seasons.length,
+          progress_episode: episodeCountForSeason(info, info.seasons.length) || 1,
+        });
+        const idx = items.findIndex((i) => i.id === item.id);
+        if (idx !== -1) items[idx] = updated;
+      } catch (err) {
+        console.warn('checkForNewTvSeasons: failed to baseline progress_season', item.id, err);
+      }
+      continue;
+    }
+    if (info.seasons.length <= item.progress_season) continue;
     try {
       const updated = await store.updateItem(item.id, {
         status: 'wishlist',
