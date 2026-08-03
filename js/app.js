@@ -1229,13 +1229,19 @@ function notificationEvents() {
     if (item.notified_season_at) {
       events.push({ item, at: item.notified_season_at, message: 'New season available' });
     }
-    if (item.notified_release_soon_at) {
-      const days = item.notified_release_soon_days;
-      const message = days === 0 ? 'Out today' : days === 1 ? 'Out in 1 day' : `Out in ${days} days`;
-      events.push({ item, at: item.notified_release_soon_at, message });
-    }
-    if (item.notified_release_day_at) {
-      events.push({ item, at: item.notified_release_day_at, message: 'Out now' });
+    // Release notifications only matter while the item is still sitting in
+    // Backlog waiting for it — once it's been started/finished there's
+    // nothing left to be notified about. "Out now" is strictly more
+    // current than "coming soon", so once both exist only the newer one
+    // is shown.
+    if (item.status === 'wishlist') {
+      if (item.notified_release_day_at) {
+        events.push({ item, at: item.notified_release_day_at, message: 'Out now' });
+      } else if (item.notified_release_soon_at) {
+        const days = item.notified_release_soon_days;
+        const message = days === 0 ? 'Out today' : days === 1 ? 'Out in 1 day' : `Out in ${days} days`;
+        events.push({ item, at: item.notified_release_soon_at, message });
+      }
     }
     if (item.notified_stale_progress_at) {
       events.push({ item, at: item.notified_stale_progress_at, message: 'No progress in 2 months' });
