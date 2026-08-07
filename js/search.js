@@ -271,7 +271,7 @@ async function searchAlbums(query) {
 async function searchGames(query) {
   const key = rawgKey();
   if (!key) return [];
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(query)}&page_size=20`
   );
   if (!res.ok) {
