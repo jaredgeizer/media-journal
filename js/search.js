@@ -278,7 +278,15 @@ async function searchGames(query) {
   // search isn't per-user data), only *a* valid project key, which the
   // public anon key satisfies (the same key supabase-js itself would send
   // automatically for an unauthenticated caller).
-  const res = await fetchWithRetry(`${cfg.supabaseUrl}/functions/v1/rawg-search`, {
+  //
+  // The path is "super-task", not "rawg-search" — Supabase's dashboard
+  // "Deploy a new function -> Via Editor" flow kept an internal slug from
+  // whichever starter template was used, separate from the display name
+  // typed in afterward, so the function is named "rawg-search" in the
+  // dashboard's function list but actually lives at this URL. Confirmed
+  // via that function's own Logs page. If it's ever redeployed under a
+  // URL that actually matches its name, update this to match.
+  const res = await fetchWithRetry(`${cfg.supabaseUrl}/functions/v1/super-task`, {
     method: 'POST',
     headers: {
       apikey: cfg.supabaseAnonKey,
