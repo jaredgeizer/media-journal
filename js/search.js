@@ -28,7 +28,7 @@ export function tmdbAvailable() {
 // so when one exists and has more seasons than the raw list, use it instead.
 async function getSeasonEpisodeGroup(tmdbId, token) {
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/episode_groups`, {
+    const res = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${tmdbId}/episode_groups`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -36,7 +36,7 @@ async function getSeasonEpisodeGroup(tmdbId, token) {
     const candidate = (data.results || []).find((g) => /season/i.test(g.name || ''));
     if (!candidate) return null;
 
-    const detailRes = await fetch(`https://api.themoviedb.org/3/tv/episode_group/${candidate.id}`, {
+    const detailRes = await fetchWithRetry(`https://api.themoviedb.org/3/tv/episode_group/${candidate.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!detailRes.ok) return null;
@@ -66,7 +66,7 @@ export async function getSeasonEpisodeNames(tmdbId, seasonNumber) {
   const token = tmdbToken();
   if (!token) return null;
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
+    const res = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
@@ -84,7 +84,7 @@ export async function getTVSeasonInfo(tmdbId) {
   if (!token) return null;
   let rawInfo = null;
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}`, {
+    const res = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${tmdbId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
@@ -105,13 +105,11 @@ export async function getTVSeasonInfo(tmdbId) {
   return rawInfo;
 }
 
-// A handful of these free/keyless APIs can fail at the network level rather
-// than returning a clean HTTP error — a rejected fetch() (Safari calls this
-// "Load failed", Chrome "Failed to fetch") rather than a response with a
-// bad status code. iTunes Search in particular seems to trip this when two
-// requests to itunes.apple.com go out at once, which happens here since
-// podcast and album search both hit it and can run concurrently during an
-// "all types" search. Retry once after a short delay before giving up.
+// These external APIs can fail at the network level rather than returning
+// a clean HTTP error — a rejected fetch() (Safari calls this "Load failed",
+// Chrome "Failed to fetch") rather than a response with a bad status code.
+// Seen intermittently across TMDb, RAWG, and others, not tied to any one
+// host. Retry once after a short delay before giving up.
 async function fetchWithRetry(url, options, retries = 1) {
   try {
     return await fetch(url, options);
@@ -139,7 +137,7 @@ export function rawgAvailable() {
 async function searchMovies(query) {
   const token = tmdbToken();
   if (!token) return [];
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&include_adult=false`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
@@ -162,7 +160,7 @@ async function searchMovies(query) {
 async function searchTV(query) {
   const token = tmdbToken();
   if (!token) return [];
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://api.themoviedb.org/3/search/tv?query=${encodeURIComponent(query)}&include_adult=false`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
@@ -185,7 +183,7 @@ async function searchTV(query) {
 async function searchBooks(query) {
   const key = googleBooksKey();
   const keyParam = key ? `&key=${encodeURIComponent(key)}` : '';
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20${keyParam}`
   );
   if (!res.ok) {

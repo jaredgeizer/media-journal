@@ -48,7 +48,6 @@ function writeDemoGoals(goals) {
 class DemoStore {
   constructor() {
     this.mode = 'demo';
-    this._authCallbacks = [];
   }
 
   async init() {
@@ -56,7 +55,6 @@ class DemoStore {
   }
 
   onAuthChange(cb) {
-    this._authCallbacks.push(cb);
     // Demo mode is always "signed in" as a local-only user.
     cb({ id: DEMO_USER_ID, email: 'demo@local' });
   }
@@ -234,6 +232,7 @@ class SupabaseStore {
 
   async addItem(item) {
     const { data: sessionData } = await this.client.auth.getSession();
+    if (!sessionData.session) throw new Error('Not signed in — please sign in again.');
     const user_id = sessionData.session.user.id;
     const { data, error } = await this.client
       .from('items')
@@ -263,6 +262,7 @@ class SupabaseStore {
   async addItems(newItems) {
     if (!newItems.length) return [];
     const { data: sessionData } = await this.client.auth.getSession();
+    if (!sessionData.session) throw new Error('Not signed in — please sign in again.');
     const user_id = sessionData.session.user.id;
     const rows = newItems.map((item) => ({ status: 'wishlist', ...item, user_id }));
     const chunkSize = 200;

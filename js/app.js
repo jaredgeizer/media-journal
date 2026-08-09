@@ -201,9 +201,16 @@ async function migrateFavoriteTag() {
   const toFix = items.filter((i) => (i.tags || []).includes('Favorite'));
   for (const item of toFix) {
     const tags = item.tags.map((t) => (t === 'Favorite' ? '❤️ Favorite' : t));
-    const updated = await store.updateItem(item.id, { tags });
-    const idx = items.findIndex((i) => i.id === item.id);
-    if (idx !== -1) items[idx] = updated;
+    try {
+      const updated = await store.updateItem(item.id, { tags });
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) items[idx] = updated;
+    } catch (err) {
+      // One bad write (e.g. a lagging network) shouldn't block the rest of
+      // the app from loading — this item just stays on the old tag and
+      // gets picked up again next load.
+      console.warn('migrateFavoriteTag: failed to update', item.id, err);
+    }
   }
 }
 
@@ -748,6 +755,18 @@ async function checkForStaleProgress() {
 // separately by checkForNewTvSeasons() above.
 const RELEASE_NOTIFICATION_TYPES = ['movie', 'game'];
 
+// release_date for movies/games is always a bare "YYYY-MM-DD" (what TMDb/
+// RAWG return) — new Date(...) parses that as UTC midnight, which can land
+// on the wrong calendar day (and shift the notification windows below by a
+// day) for anyone west of UTC. Same underlying issue dateInputValue() below
+// already works around for the same reason; parse into local midnight
+// instead of routing through new Date() directly.
+function localMidnight(dateOnlyStr) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateOnlyStr || '');
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
 async function checkForUpcomingReleases() {
   const candidates = items.filter(
     (i) =>
@@ -758,8 +777,11 @@ async function checkForUpcomingReleases() {
   );
   let changed = false;
   const now = new Date();
+  const todayLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   for (const item of candidates) {
-    const daysUntilRelease = Math.round((new Date(item.release_date) - now) / (1000 * 60 * 60 * 24));
+    const releaseDate = localMidnight(item.release_date);
+    if (!releaseDate) continue;
+    const daysUntilRelease = Math.round((releaseDate - todayLocalMidnight) / (1000 * 60 * 60 * 24));
     const patch = {};
     if (!item.notified_release_soon_at && daysUntilRelease >= 0 && daysUntilRelease <= 7) {
       patch.notified_release_soon_at = now.toISOString();
@@ -1244,7 +1266,7 @@ function notificationEvents() {
       }
     }
     if (item.notified_stale_progress_at) {
-      events.push({ item, at: item.notified_stale_progress_at, message: 'No progress in 2 months' });
+      events.push({ item, at: item.notified_stale_progress_at, message: `No progress in ${Math.round(STALE_NOTICE_DAYS / 30)} months` });
     }
   }
   events.sort((a, b) => new Date(b.at) - new Date(a.at));

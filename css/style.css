@@ -66,40 +66,6 @@
   }
 }
 
-:root[data-theme="light"] {
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-strong: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --text-primary: #1c1c1e;
-  --text-secondary: rgba(60, 60, 67, 0.75);
-  --page-bg: #f1f1f1;
-  --page-bg-rgb: 241, 241, 241;
-  --type-movie: #2a78d6;
-  --type-book: #e87ba4;
-  --type-podcast: #eda100;
-  --type-album: #1baf7a;
-  --type-game: #eb6834;
-  --type-play: #4a3aa7;
-  --type-restaurant: #e34948;
-}
-
-:root[data-theme="dark"] {
-  --glass-bg: rgba(40, 40, 46, 0.55);
-  --glass-bg-strong: rgba(46, 46, 54, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.14);
-  --text-primary: #f2f2f7;
-  --text-secondary: rgba(235, 235, 245, 0.72);
-  --page-bg: #000000;
-  --page-bg-rgb: 0, 0, 0;
-  --type-movie: #3987e5;
-  --type-book: #d55181;
-  --type-podcast: #c98500;
-  --type-album: #199e70;
-  --type-game: #d95926;
-  --type-play: #9085e9;
-  --type-restaurant: #e66767;
-}
-
 * { box-sizing: border-box; }
 
 html, body {
@@ -1214,8 +1180,6 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 }
 .stars button.filled { color: var(--star-on); }
 .stars button:hover { transform: scale(1.15); }
-.stars.readonly button { cursor: default; }
-.stars.readonly button:hover { transform: none; }
 
 /* ---------- Empty state / notices ---------- */
 
@@ -1743,12 +1707,11 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   .field textarea,
   .field input,
   .field select,
-  .tag-add-input,
-  .currently-progress-number {
+  .tag-add-input {
     font-size: 16px;
   }
 
-  .currently-progress-number { width: 50px; }
+  .currently-progress-number { font-size: 16px; width: 50px; }
 }
 
 /* Narrower phones drop main's own side padding to 12px (see the other
