@@ -21,9 +21,13 @@
 //      under "Application restrictions" add your GitHub Pages URL as an
 //      allowed HTTP referrer (e.g. https://jaredgeizer.github.io/*)
 //
-// RAWG API key (required for video game search):
-//   1. Create a free account at https://rawg.io/apidocs
-//   2. Copy your API key from the "API key" page → paste it below
+// RAWG API key (required for video game search) — no longer goes here.
+// RAWG blocks direct browser requests (no CORS headers), so the key now
+// lives server-side as a Supabase secret read by a small Edge Function
+// (supabase/functions/rawg-search) instead — see README's "Setting up
+// video game search (RAWG)" section for the deploy steps. The
+// `rawgApiKey` field below is no longer read by the app; safe to delete
+// once you've moved the key over.
 //
 // Leaving these as placeholders runs the app in local Demo Mode: data is
 // stored only in this browser (localStorage) and search falls back to a

@@ -71,8 +71,10 @@ Then visit `http://localhost:8000`. With no Supabase config, the app runs
 in **Demo Mode**: your data is saved to `localStorage` in that one
 browser only. It's a good way to try the UI before setting up real
 storage. Book, podcast, and album search work in Demo Mode too (no key
-needed); movie/TV search needs a TMDb key and video game search needs a
-RAWG key either way (see below).
+needed); movie/TV search needs a TMDb key. Video game search needs a
+connected Supabase project either way — see below, it doesn't work in
+Demo Mode at all (RAWG's API can only be reached through a server-side
+proxy, not directly from the browser).
 
 ## Setting up real storage (Supabase) — for cross-device sync
 
@@ -231,10 +233,26 @@ quota with everyone else doing the same — you'll occasionally see
 
 ## Setting up video game search (RAWG)
 
-1. Create a free account at [rawg.io/apidocs](https://rawg.io/apidocs).
-2. Copy your API key from the API docs page (it's generated automatically
-   for your account).
-3. Paste it into `rawgApiKey` in `js/config.js`.
+RAWG's API doesn't send CORS headers for arbitrary origins, so it can't
+be called directly from the browser the way TMDb/Google Books/iTunes/
+MusicBrainz are — a request straight to `api.rawg.io` from this app's JS
+gets blocked by the browser itself. A small Supabase Edge Function sits
+in front of it instead, making the request server-side. This means video
+game search needs a connected Supabase project (see "Setting up real
+storage" above) — it doesn't work in Demo Mode.
+
+1. Create a free account at [rawg.io/apidocs](https://rawg.io/apidocs)
+   and copy your API key from the API docs page (it's generated
+   automatically for your account).
+2. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and
+   log in, then from the repo root:
+   ```sh
+   supabase link --project-ref <your-project-ref>
+   supabase functions deploy rawg-search
+   supabase secrets set RAWG_API_KEY=<your RAWG key>
+   ```
+   (Your project ref is the subdomain in your Supabase URL —
+   `https://<project-ref>.supabase.co`.)
 
 Free tier is 20,000 requests/month, plenty for personal use. RAWG asks
 that apps using their free API credit them — the footer already
@@ -329,4 +347,5 @@ js/storage.js         Data layer: Supabase, or localStorage Demo Mode
 js/search.js           TMDb / Google Books / iTunes / MusicBrainz / RAWG search integrations
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
+supabase/functions/rawg-search/index.ts  Edge Function proxying RAWG search (see "Setting up video game search")
 ```

@@ -7,8 +7,14 @@
 //   add a free Google API key in js/config.js to get your own quota)
 // - Podcasts: iTunes Search API (no key required)
 // - Albums: MusicBrainz (no key required)
-// - Video games: RAWG.io (needs a free API key in js/config.js)
+// - Video games: RAWG.io, via a Supabase Edge Function (supabase/functions/
+//   rawg-search) rather than a direct browser fetch() — RAWG doesn't send
+//   CORS headers for arbitrary origins, so a direct fetch() gets blocked
+//   by the browser itself (see rawg-search/index.ts for the full story).
+//   Needs a connected Supabase project with that function deployed.
 // - Plays / restaurants / other: no free search API wired up — added manually.
+
+import { isConfigured } from './storage.js';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 
@@ -125,13 +131,11 @@ function googleBooksKey() {
   return k && !k.startsWith('YOUR_') ? k : null;
 }
 
-function rawgKey() {
-  const k = (window.MEDIA_JOURNAL_CONFIG || {}).rawgApiKey;
-  return k && !k.startsWith('YOUR_') ? k : null;
-}
-
+// The RAWG key itself now lives server-side (a Supabase secret read by
+// supabase/functions/rawg-search) — the client only needs a connected
+// Supabase project to reach that function at all.
 export function rawgAvailable() {
-  return !!rawgKey();
+  return isConfigured(window.MEDIA_JOURNAL_CONFIG || {});
 }
 
 async function searchMovies(query) {
@@ -267,16 +271,27 @@ async function searchAlbums(query) {
 }
 
 async function searchGames(query) {
-  const key = rawgKey();
-  if (!key) return [];
-  const res = await fetchWithRetry(
-    `https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(query)}&page_size=20`
-  );
+  const cfg = window.MEDIA_JOURNAL_CONFIG || {};
+  if (!isConfigured(cfg)) return [];
+  // Calling the Edge Function directly with fetch() rather than pulling in
+  // supabase-js just for this — the function needs no per-user JWT (RAWG
+  // search isn't per-user data), only *a* valid project key, which the
+  // public anon key satisfies (the same key supabase-js itself would send
+  // automatically for an unauthenticated caller).
+  const res = await fetchWithRetry(`${cfg.supabaseUrl}/functions/v1/rawg-search`, {
+    method: 'POST',
+    headers: {
+      apikey: cfg.supabaseAnonKey,
+      Authorization: `Bearer ${cfg.supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
   if (!res.ok) {
     let detail = '';
     try {
       const errBody = await res.json();
-      if (errBody && errBody.detail) detail = ` — ${errBody.detail}`;
+      if (errBody && errBody.error) detail = ` — ${errBody.error}`;
     } catch {
       // response wasn't JSON; ignore
     }

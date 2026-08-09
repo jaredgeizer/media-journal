@@ -3167,7 +3167,7 @@ async function runDiscoverSearch() {
     notices.push('Add a free TMDb API key to js/config.js to search movies & TV — see README.');
   }
   if (!rawgAvailable() && (type === 'all' || type === 'game')) {
-    notices.push('Add a free RAWG API key to js/config.js to search video games — see README.');
+    notices.push('Video game search needs a connected Supabase project with the rawg-search function deployed — see README.');
   }
 
   const { results: rawResults, errors } = await searchExternal(query, type);

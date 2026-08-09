@@ -7,7 +7,7 @@ const DEMO_KEY = 'mediaJournal.demo.items';
 const DEMO_GOALS_KEY = 'mediaJournal.demo.goals';
 const DEMO_LIBBY_KEY = 'mediaJournal.demo.libbyLibrary';
 
-function isConfigured(cfg) {
+export function isConfigured(cfg) {
   return (
     cfg &&
     cfg.supabaseUrl &&
