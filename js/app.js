@@ -1,5 +1,5 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable, gameSearchAvailable, getTVSeasonInfo, getSeasonEpisodeNames, SEARCHABLE_TYPES } from './search.js';
+import { search as searchExternal, tmdbAvailable, gameSearchAvailable, getTVSeasonInfo, getSeasonEpisodeNames, getImdbId, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
@@ -481,6 +481,66 @@ function libbyLinkHtml(item) {
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="external-link">Find on Libby</a>`;
 }
 
+// ---------- IMDb links ----------
+// Two paths, and which one an item gets is decided synchronously from
+// whether it carries a TMDb id:
+//
+//   - TMDb-sourced -> look up its real IMDb id and link straight to the
+//     title page. Needs a network call, so the modal renders a placeholder
+//     that imdbLinkHtml()'s caller fills in once the lookup lands.
+//   - everything else (Letterboxd imports, manual adds) -> link to an IMDb
+//     search prefilled with the title and year. No API call, no token, so
+//     this works in Demo Mode too.
+//
+// Deciding up front rather than "try exact, fall back on failure" is what
+// keeps the label stable: an item never renders as "Search on IMDb" and
+// then rewrites itself to "View on IMDb" a moment later.
+const IMDB_LINKABLE_TYPES = ['movie', 'tv'];
+const imdbIdCache = new Map();
+
+async function getImdbIdCached(item) {
+  const tmdbId = tmdbEntityId(item);
+  if (!tmdbId) return null;
+  const key = `${item.media_type}-${tmdbId}`;
+  // Cache misses (null) too — a title with no IMDb entry, or a lookup that
+  // failed, shouldn't be refetched every time the modal opens.
+  if (imdbIdCache.has(key)) return imdbIdCache.get(key);
+  const imdbId = await getImdbId(tmdbId, item.media_type);
+  imdbIdCache.set(key, imdbId);
+  return imdbId;
+}
+
+// s=tt restricts IMDb's search to titles, so a film doesn't surface a cast
+// member with the same name first.
+function imdbSearchUrl(item) {
+  const query = [item.title, item.year].filter(Boolean).join(' ');
+  return `https://www.imdb.com/find/?q=${encodeURIComponent(query)}&s=tt`;
+}
+
+function imdbAnchorHtml(url, label) {
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
+}
+
+function imdbLinkHtml(item) {
+  if (!IMDB_LINKABLE_TYPES.includes(item.media_type) || !item.title) return '';
+  if (tmdbEntityId(item)) return `<span id="modalImdbLink"></span>`;
+  return imdbAnchorHtml(imdbSearchUrl(item), 'Search on IMDb');
+}
+
+// Fills the placeholder left by imdbLinkHtml() for TMDb-sourced items. A
+// lookup that comes back empty falls back to the search link rather than
+// leaving a gap or rendering a dead href.
+function fillImdbLink(item) {
+  if (!tmdbEntityId(item)) return;
+  getImdbIdCached(item).then((imdbId) => {
+    const slot = el('modalImdbLink');
+    if (!slot) return; // modal closed while the lookup was in flight
+    slot.outerHTML = imdbId
+      ? imdbAnchorHtml(`https://www.imdb.com/title/${imdbId}/`, 'View on IMDb')
+      : imdbAnchorHtml(imdbSearchUrl(item), 'Search on IMDb');
+  });
+}
+
 function descriptionHtml(text, id) {
   if (!text) return '';
   return `
@@ -603,10 +663,20 @@ function hasProgress(item) {
 // cached in memory for the session (avoids refetching on every render).
 const tvSeasonInfoCache = new Map();
 
+// TMDb ids live in external_id prefixed by type ('movie-550', 'tv-1399') —
+// see searchMovies()/searchTV() in js/search.js. Returns null for anything
+// that didn't come from TMDb: a Letterboxd import stores its own URI here
+// instead, and Clean Up never rewrites external_source/external_id, so
+// plenty of items legitimately have no TMDb id.
+function tmdbEntityId(item) {
+  if (item.external_source !== 'tmdb' || !item.external_id) return null;
+  const match = /^(movie|tv)-(\d+)$/.exec(item.external_id);
+  if (!match || match[1] !== item.media_type) return null;
+  return match[2];
+}
+
 function tmdbTvId(item) {
-  if (item.media_type !== 'tv' || item.external_source !== 'tmdb' || !item.external_id) return null;
-  const match = /^tv-(\d+)$/.exec(item.external_id);
-  return match ? match[1] : null;
+  return item.media_type === 'tv' ? tmdbEntityId(item) : null;
 }
 
 async function getSeasonInfoCached(item) {
@@ -2494,7 +2564,7 @@ function openEditModal(item) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    <div class="modal-links">${externalLinkHtml(current)}${libbyLinkHtml(current)}</div>
+    <div class="modal-links">${externalLinkHtml(current)}${imdbLinkHtml(current)}${libbyLinkHtml(current)}</div>
     ${descriptionHtml(current.description, 'editDescription')}
     ${
       (current.status === 'wishlist' || current.status === 'completed') && (!current.poster_url || needsReleaseDateFix(current))
@@ -2555,6 +2625,8 @@ function openEditModal(item) {
       seasonCountEl.textContent = `${n} Season${n === 1 ? '' : 's'}`;
     });
   }
+
+  fillImdbLink(current);
 
   async function persist(patch) {
     const updated = await store.updateItem(current.id, patch);

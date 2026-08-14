@@ -114,6 +114,30 @@ export async function getTVSeasonInfo(tmdbId) {
   return rawInfo;
 }
 
+// IMDb ids aren't in TMDb's search results either — another per-item lookup,
+// keyed by the TMDb id. Uses the external_ids endpoint for both movies and
+// TV rather than the details endpoint: movie details happens to include
+// imdb_id, but TV details doesn't, so external_ids is the one path that
+// works uniformly for both.
+//
+// Returns null rather than throwing on any failure — the caller falls back
+// to an IMDb search link, so a failed lookup degrades instead of breaking.
+export async function getImdbId(tmdbId, mediaType) {
+  const token = tmdbToken();
+  if (!token) return null;
+  const path = mediaType === 'tv' ? 'tv' : 'movie';
+  try {
+    const res = await fetchWithRetry(`https://api.themoviedb.org/3/${path}/${tmdbId}/external_ids`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.imdb_id || null;
+  } catch {
+    return null;
+  }
+}
+
 // These external APIs can fail at the network level rather than returning
 // a clean HTTP error — a rejected fetch() (Safari calls this "Load failed",
 // Chrome "Failed to fetch") rather than a response with a bad status code.
