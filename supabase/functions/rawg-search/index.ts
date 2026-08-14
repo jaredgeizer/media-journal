@@ -20,17 +20,20 @@
 // request that never gets a response (rather than a clean error) hangs
 // until Supabase's own platform gives up, which surfaces to the client
 // as an opaque Cloudflare 522 with zero diagnostic info. A deliberate
-// timeout fails fast with a clear message instead — useful in general,
-// and specifically because RAWG (or an anti-bot layer in front of it)
-// may be silently dropping requests from cloud/datacenter IP ranges,
-// which is exactly the kind of range Supabase Edge Functions run on.
+// timeout fails fast with a clear message instead.
+//
+// RAWG's API is independently documented as just plain slow — typical
+// response times over 10s are reported even for normal, unblocked
+// requests — so the timeout is set well above that rather than tight
+// enough to double as an IP-block detector. Supabase's own platform-level
+// idle timeout is 150s (free tier), so there's plenty of headroom.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAWG_TIMEOUT_MS = 8000;
+const RAWG_TIMEOUT_MS = 25000;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
