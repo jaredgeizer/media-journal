@@ -41,7 +41,17 @@
 -- Import / Export -> Export). This rewrites rows in place and there is no
 -- undo beyond the rollback query at the bottom.
 --
--- Run in the Supabase SQL editor: Project -> SQL Editor -> New query.
+-- HOW TO RUN — read this, it matters
+--   Supabase's SQL editor runs EVERY statement in the editor box when you
+--   hit Run. Pasting this whole file and clicking Run would fire the preview
+--   and the update together, which defeats the point of having a preview.
+--
+--   Run one numbered step at a time, either by:
+--     (a) pasting just that step's block into an empty editor, or
+--     (b) pasting the whole file, then selecting only that step's text and
+--         pressing Cmd+Enter (Ctrl+Enter on Windows) to run the selection.
+--
+-- Project -> SQL Editor -> New query.
 -- Replace the email below if this is ever used for a different account.
 
 

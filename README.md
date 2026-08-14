@@ -331,9 +331,19 @@ needs the same fix. `supabase/one-off/` holds SQL scripts for those cases,
 run from the Supabase SQL editor:
 
 - `backfill-movie-watched-dates.sql` — gives every completed movie that's
-  missing a watched date one derived from its release date. Each script
-  starts with a preview query that changes nothing, and ends with a
-  rollback. Read the header comment before running.
+  missing a watched date one derived from its **release date**.
+- `backfill-movie-watched-dates-from-year.sql` — the mop-up: same idea, but
+  for movies with no usable release date, falling back to the `year` column
+  (so everything it touches gets January 1). Only touches rows the first
+  script can't, so the two can run in either order.
+
+Each is numbered into steps: a preview that changes nothing, the update
+itself, a verify, and a commented-out rollback. **Run one step at a time** —
+Supabase's SQL editor executes everything in the box when you hit Run, so
+pasting a whole file fires the update before you've read the preview. Either
+paste a single step into an empty editor, or select just that step's text and
+press Cmd+Enter. Export a JSON backup first (account menu → Import / Export),
+and read each file's header comment before running it.
 
 ## Quick Add (Apple Shortcuts)
 
