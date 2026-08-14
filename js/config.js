@@ -21,13 +21,11 @@
 //      under "Application restrictions" add your GitHub Pages URL as an
 //      allowed HTTP referrer (e.g. https://jaredgeizer.github.io/*)
 //
-// RAWG API key (required for video game search) — no longer goes here.
-// RAWG blocks direct browser requests (no CORS headers), so the key now
-// lives server-side as a Supabase secret read by a small Edge Function
-// (supabase/functions/rawg-search) instead — see README's "Setting up
-// video game search (RAWG)" section for the deploy steps. The
-// `rawgApiKey` field below is no longer read by the app; safe to delete
-// once you've moved the key over.
+// IGDB credentials (required for video game search) — these don't go here.
+// IGDB blocks direct browser requests (no CORS headers), so its Twitch
+// client id/secret live server-side as Supabase secrets read by a small
+// Edge Function (supabase/functions/igdb-search) instead — see README's
+// "Setting up video game search (IGDB)" section for the deploy steps.
 //
 // Leaving these as placeholders runs the app in local Demo Mode: data is
 // stored only in this browser (localStorage) and search falls back to a
@@ -38,5 +36,4 @@ window.MEDIA_JOURNAL_CONFIG = {
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indkb3hlZm1senRraGNjYnZuZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDU4MjQsImV4cCI6MjA5OTAyMTgyNH0.AXKWd7tVyZO4o6p3dpaZIam00T_0FYYZCCRFVjnEvfU',
   tmdbAccessToken: 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIxOWVhNWIwMDRkYzAyYzBjOWRjM2ZlZGFiMGM3OGU3ZSIsIm5iZiI6MTc2MTY4MDUwOS40MDcsInN1YiI6IjY5MDExYzdkZGY5YWFmMWNmMWE2MzlkZCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.nMOluNqeVlpyCL7kdkNIecRylqEfX7jzch6mk9jIqSo',
   googleBooksApiKey: 'AIzaSyA77R0j1mVLUVc-GwlY6hC__EdqbUdBJiA',
-  rawgApiKey: 'f8e821663e614e40b1bf06d327c84b66',
 };

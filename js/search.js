@@ -7,16 +7,19 @@
 //   add a free Google API key in js/config.js to get your own quota)
 // - Podcasts: iTunes Search API (no key required)
 // - Albums: MusicBrainz (no key required)
-// - Video games: RAWG.io, via a Supabase Edge Function (supabase/functions/
-//   rawg-search) rather than a direct browser fetch() — RAWG doesn't send
+// - Video games: IGDB, via a Supabase Edge Function (supabase/functions/
+//   igdb-search) rather than a direct browser fetch() — IGDB doesn't send
 //   CORS headers for arbitrary origins, so a direct fetch() gets blocked
-//   by the browser itself (see rawg-search/index.ts for the full story).
+//   by the browser itself (see igdb-search/index.ts for the full story).
 //   Needs a connected Supabase project with that function deployed.
 // - Plays / restaurants / other: no free search API wired up — added manually.
 
 import { isConfigured } from './storage.js';
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
+// IGDB serves images from a path-templated CDN: t_cover_big is 227x320,
+// which matches the poster slot without paying for full-size art.
+const IGDB_IMG = 'https://images.igdb.com/igdb/image/upload/t_cover_big/';
 
 function tmdbToken() {
   const t = (window.MEDIA_JOURNAL_CONFIG || {}).tmdbAccessToken;
@@ -114,7 +117,7 @@ export async function getTVSeasonInfo(tmdbId) {
 // These external APIs can fail at the network level rather than returning
 // a clean HTTP error — a rejected fetch() (Safari calls this "Load failed",
 // Chrome "Failed to fetch") rather than a response with a bad status code.
-// Seen intermittently across TMDb, RAWG, and others, not tied to any one
+// Seen intermittently across TMDb, IGDB, and others, not tied to any one
 // host. Retry once after a short delay before giving up.
 async function fetchWithRetry(url, options, retries = 1) {
   try {
@@ -131,10 +134,10 @@ function googleBooksKey() {
   return k && !k.startsWith('YOUR_') ? k : null;
 }
 
-// The RAWG key itself now lives server-side (a Supabase secret read by
-// supabase/functions/rawg-search) — the client only needs a connected
+// The IGDB credentials live server-side (Supabase secrets read by
+// supabase/functions/igdb-search) — the client only needs a connected
 // Supabase project to reach that function at all.
-export function rawgAvailable() {
+export function gameSearchAvailable() {
   return isConfigured(window.MEDIA_JOURNAL_CONFIG || {});
 }
 
@@ -270,19 +273,29 @@ async function searchAlbums(query) {
   }));
 }
 
+// IGDB returns release dates as Unix timestamps (seconds), but every other
+// source here — and the release-notification logic in app.js — works in bare
+// "YYYY-MM-DD" strings. Convert on the way in so games look like everything
+// else downstream.
+function igdbReleaseDate(timestamp) {
+  if (typeof timestamp !== 'number') return null;
+  const d = new Date(timestamp * 1000);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
 async function searchGames(query) {
   const cfg = window.MEDIA_JOURNAL_CONFIG || {};
   if (!isConfigured(cfg)) return [];
   // Calling the Edge Function directly with fetch() rather than pulling in
-  // supabase-js just for this — the function needs no per-user JWT (RAWG
+  // supabase-js just for this — the function needs no per-user JWT (game
   // search isn't per-user data), only *a* valid project key, which the
   // public anon key satisfies (the same key supabase-js itself would send
   // automatically for an unauthenticated caller).
   //
-  // The path is "super-task", not "rawg-search" — Supabase's dashboard
+  // The path is "super-task", not "igdb-search" — Supabase's dashboard
   // "Deploy a new function -> Via Editor" flow kept an internal slug from
   // whichever starter template was used, separate from the display name
-  // typed in afterward, so the function is named "rawg-search" in the
+  // typed in afterward, so the function shows up under its own name in the
   // dashboard's function list but actually lives at this URL. Confirmed
   // via that function's own Logs page. If it's ever redeployed under a
   // URL that actually matches its name, update this to match.
@@ -308,18 +321,22 @@ async function searchGames(query) {
   const data = await res.json();
   return (data.results || []).map((r) => {
     const genres = (r.genres || []).map((g) => g.name).join(', ');
+    const releaseDate = igdbReleaseDate(r.first_release_date);
+    const coverId = r.cover && r.cover.image_id;
     return {
       media_type: 'game',
       title: r.name,
       creator: null,
-      year: (r.released || '').slice(0, 4) || null,
-      release_date: r.released || null,
-      poster_url: r.background_image || null,
+      year: releaseDate ? releaseDate.slice(0, 4) : null,
+      release_date: releaseDate,
+      poster_url: coverId ? `${IGDB_IMG}${coverId}.jpg` : null,
       description: genres || null,
-      external_source: 'rawg',
+      external_source: 'igdb',
       external_id: String(r.id),
-      external_url: r.slug ? `https://rawg.io/games/${r.slug}` : null,
-      popularity: r.added || 0,
+      external_url: r.slug ? `https://www.igdb.com/games/${r.slug}` : null,
+      // IGDB has no direct equivalent of RAWG's "added" count; rating count
+      // is the closest available proxy for how well-known a game is.
+      popularity: r.total_rating_count || 0,
     };
   });
 }

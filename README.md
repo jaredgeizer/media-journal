@@ -12,7 +12,7 @@ desktop.
 - **Journal** — a blog-style feed of things you've finished, with your
   star rating and notes, newest first.
 - **Discover** — search movies & TV (TMDb), books (Google Books),
-  podcasts (iTunes), albums (MusicBrainz), and video games (RAWG) and add
+  podcasts (iTunes), albums (MusicBrainz), and video games (IGDB) and add
   results with one tap. Anything else (plays, restaurants, etc.) can be
   added by hand.
 
@@ -73,7 +73,7 @@ browser only. It's a good way to try the UI before setting up real
 storage. Book, podcast, and album search work in Demo Mode too (no key
 needed); movie/TV search needs a TMDb key. Video game search needs a
 connected Supabase project either way — see below, it doesn't work in
-Demo Mode at all (RAWG's API can only be reached through a server-side
+Demo Mode at all (IGDB's API can only be reached through a server-side
 proxy, not directly from the browser).
 
 ## Setting up real storage (Supabase) — for cross-device sync
@@ -231,32 +231,54 @@ quota with everyone else doing the same — you'll occasionally see
    anywhere else if someone finds it in your published JS.
 5. Paste it into `googleBooksApiKey` in `js/config.js`.
 
-## Setting up video game search (RAWG)
+## Setting up video game search (IGDB)
 
-RAWG's API doesn't send CORS headers for arbitrary origins, so it can't
+IGDB's API doesn't send CORS headers for arbitrary origins, so it can't
 be called directly from the browser the way TMDb/Google Books/iTunes/
-MusicBrainz are — a request straight to `api.rawg.io` from this app's JS
+MusicBrainz are — a request straight to `api.igdb.com` from this app's JS
 gets blocked by the browser itself. A small Supabase Edge Function sits
 in front of it instead, making the request server-side. This means video
 game search needs a connected Supabase project (see "Setting up real
 storage" above) — it doesn't work in Demo Mode.
 
-1. Create a free account at [rawg.io/apidocs](https://rawg.io/apidocs)
-   and copy your API key from the API docs page (it's generated
-   automatically for your account).
+IGDB is owned by Twitch, so its credentials are Twitch app credentials:
+
+1. Go to the [Twitch developer console](https://dev.twitch.tv/console/apps),
+   register a new application (any name; OAuth redirect URL can be
+   `http://localhost`, category "Application Integration"), then copy its
+   **Client ID** and generate a **Client Secret**.
 2. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and
    log in, then from the repo root:
    ```sh
    supabase link --project-ref <your-project-ref>
-   supabase functions deploy rawg-search
-   supabase secrets set RAWG_API_KEY=<your RAWG key>
+   supabase functions deploy igdb-search
+   supabase secrets set IGDB_CLIENT_ID=<your client id>
+   supabase secrets set IGDB_CLIENT_SECRET=<your client secret>
    ```
    (Your project ref is the subdomain in your Supabase URL —
    `https://<project-ref>.supabase.co`.)
 
-Free tier is 20,000 requests/month, plenty for personal use. RAWG asks
-that apps using their free API credit them — the footer already
-includes a "Game data from RAWG.io" line, so no extra setup needed there.
+The function exchanges those credentials for a Twitch access token itself
+and caches it, so there's nothing to refresh by hand. Free for
+non-commercial use, rate limited to 4 requests/second — far more than
+personal use needs. The footer already includes a "Game data from IGDB"
+credit line.
+
+> **Note on the deployed URL:** the function is currently deployed under
+> the slug `super-task` rather than `igdb-search` — Supabase's dashboard
+> "Deploy via Editor" flow assigns an internal slug from the starter
+> template that's separate from the display name. `js/search.js` calls the
+> real URL. If you redeploy via the CLI as above, the slug will match the
+> directory name and that call needs updating to `/functions/v1/igdb-search`.
+
+### Previously: RAWG
+
+Game search used [RAWG](https://rawg.io) until August 2026. It was
+dropped after repeated multi-day outages (9 in a single 30-day window on
+its own status history) plus widely reported response times over 10
+seconds even when up. Games already saved from RAWG keep working —
+they're matched by title against new IGDB results, so nothing needs
+re-adding.
 
 ## Importing your data
 
@@ -344,8 +366,8 @@ quick-add.html        Standalone fast-capture page (Apple Shortcuts, etc.)
 css/style.css        Liquid-glass design system
 js/config.js          Your Supabase + API keys (fill in, safe to commit)
 js/storage.js         Data layer: Supabase, or localStorage Demo Mode
-js/search.js           TMDb / Google Books / iTunes / MusicBrainz / RAWG search integrations
+js/search.js           TMDb / Google Books / iTunes / MusicBrainz / IGDB search integrations
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
-supabase/functions/rawg-search/index.ts  Edge Function proxying RAWG search (see "Setting up video game search")
+supabase/functions/igdb-search/index.ts  Edge Function proxying IGDB search (see "Setting up video game search")
 ```

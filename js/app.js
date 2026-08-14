@@ -1,5 +1,5 @@
 import { createStore } from './storage.js';
-import { search as searchExternal, tmdbAvailable, rawgAvailable, getTVSeasonInfo, getSeasonEpisodeNames, SEARCHABLE_TYPES } from './search.js';
+import { search as searchExternal, tmdbAvailable, gameSearchAvailable, getTVSeasonInfo, getSeasonEpisodeNames, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
@@ -755,8 +755,9 @@ async function checkForStaleProgress() {
 // separately by checkForNewTvSeasons() above.
 const RELEASE_NOTIFICATION_TYPES = ['movie', 'game'];
 
-// release_date for movies/games is always a bare "YYYY-MM-DD" (what TMDb/
-// RAWG return) — new Date(...) parses that as UTC midnight, which can land
+// release_date for movies/games is always a bare "YYYY-MM-DD" (what TMDb
+// returns, and what searchGames() normalizes IGDB's Unix timestamps into)
+// — new Date(...) parses that as UTC midnight, which can land
 // on the wrong calendar day (and shift the notification windows below by a
 // day) for anyone west of UTC. Same underlying issue dateInputValue() below
 // already works around for the same reason; parse into local midnight
@@ -1788,7 +1789,7 @@ async function loadCleanupMatch(item) {
   if (!document.body.contains(slot)) return; // row was removed/resolved while the search was in flight
 
   // A match that's just as imprecise as what's already stored (e.g. an
-  // unreleased title TMDb/RAWG itself only has a bare year for) isn't
+  // unreleased title TMDb/IGDB itself only has a bare year for) isn't
   // something re-running the same search again is going to improve on.
   // Recording that we checked stops it from being re-suggested as an
   // actionable "Use this match" — which would otherwise apply nothing and
@@ -3074,7 +3075,7 @@ function journalSkeletonEntryHtml() {
 
 // Already-in-library results come first (reusing the same match check the
 // badges use); beyond that, prefer sources' own popularity signal (TMDb
-// `popularity`, RAWG `added`) as a rough tiebreaker where one exists.
+// `popularity`, IGDB `total_rating_count`) as a rough tiebreaker where one exists.
 function rankDiscoverResults(results) {
   return results
     .map((r, idx) => ({ r, idx }))
@@ -3166,8 +3167,8 @@ async function runDiscoverSearch() {
   if (!tmdbAvailable() && (type === 'all' || type === 'movie' || type === 'tv')) {
     notices.push('Add a free TMDb API key to js/config.js to search movies & TV — see README.');
   }
-  if (!rawgAvailable() && (type === 'all' || type === 'game')) {
-    notices.push('Video game search needs a connected Supabase project with the rawg-search function deployed — see README.');
+  if (!gameSearchAvailable() && (type === 'all' || type === 'game')) {
+    notices.push('Video game search needs a connected Supabase project with the igdb-search function deployed — see README.');
   }
 
   const { results: rawResults, errors } = await searchExternal(query, type);

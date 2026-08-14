@@ -16,7 +16,7 @@ create table if not exists public.items (
   description    text,
 
   -- where it came from (for search results pulled from an external API)
-  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'musicbrainz' | 'rawg' | 'manual'
+  external_source text,       -- 'tmdb' | 'google_books' | 'itunes' | 'musicbrainz' | 'igdb' | 'rawg' (legacy) | 'manual'
   external_id     text,
   external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 
