@@ -324,6 +324,17 @@ to search and pick the right match yourself.
 Serializd isn't supported yet — it doesn't currently offer a reliable free
 export.
 
+### Bulk fixes that Clean Up is too slow for
+
+Clean Up works one item at a time, which gets tedious when a whole import
+needs the same fix. `supabase/one-off/` holds SQL scripts for those cases,
+run from the Supabase SQL editor:
+
+- `backfill-movie-watched-dates.sql` — gives every completed movie that's
+  missing a watched date one derived from its release date. Each script
+  starts with a preview query that changes nothing, and ends with a
+  rollback. Read the header comment before running.
+
 ## Quick Add (Apple Shortcuts)
 
 `quick-add.html` is a tiny standalone page for fast capture: an
