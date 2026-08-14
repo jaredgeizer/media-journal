@@ -244,9 +244,19 @@ storage" above) — it doesn't work in Demo Mode.
 IGDB is owned by Twitch, so its credentials are Twitch app credentials:
 
 1. Go to the [Twitch developer console](https://dev.twitch.tv/console/apps),
-   register a new application (any name; OAuth redirect URL can be
-   `http://localhost`, category "Application Integration"), then copy its
-   **Client ID** and generate a **Client Secret**.
+   register a new application (any name; category "Application
+   Integration"), then copy its **Client ID** and generate a **Client
+   Secret**.
+
+   For the **OAuth Redirect URL**, use `https://localhost`. The console
+   rejects `http://` URLs ("Redirect URIs must use HTTPS protocol") even
+   though Twitch's own docs still suggest `http://localhost:3000`. It
+   doesn't matter what you put: the redirect URL is only used in flows
+   where a user is bounced to Twitch to log in and sent back, and this
+   function uses the client-credentials grant instead — a direct
+   server-to-server exchange of client id/secret for an app token, with
+   no browser redirect anywhere in it. It's a required registration
+   field that nothing here ever reads.
 2. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and
    log in, then from the repo root:
    ```sh
