@@ -1975,6 +1975,127 @@ function accountStatsHtml(year) {
     </div>`;
 }
 
+// ---------- Account activity calendar ----------
+
+// Which month the calendar is showing. Reset to the real current month
+// every time the Account page is opened; moved by the ‹ › arrows and by
+// the year dropdown in between.
+let accountCalendarMonth = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+// MONTH_NAMES is shared with the Journal's month headings — see its
+// declaration above journalDateGroupKey().
+const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+// Media types present on each day of the given month, as
+// Map<dayOfMonth, Set<mediaType>>. A Set is what gives "one dot per
+// category" for free — three movies finished on the same day collapse to
+// a single movie-colored dot.
+//
+// Local getters throughout (getFullYear/getMonth/getDate), matching
+// accountStatsForYear() and the local-midnight convention explained above
+// dateInputToIso(). Reading these timestamps as UTC instead would slide
+// items onto the wrong day for anyone west of UTC.
+function completionsByDayForMonth(year, month) {
+  const byDay = new Map();
+  items.forEach((i) => {
+    if (i.status !== 'completed' || !i.date_completed) return;
+    const d = new Date(i.date_completed);
+    if (Number.isNaN(d.getTime())) return;
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = d.getDate();
+    if (!byDay.has(day)) byDay.set(day, new Set());
+    byDay.get(day).add(i.media_type);
+  });
+  return byDay;
+}
+
+// Navigation is clamped to the years the dropdown actually offers (years
+// with completed items, plus the current year) through today's month.
+// Keeping the calendar inside that range means syncing the dropdown to it
+// can never select an option that doesn't exist, and stops the arrows
+// paging endlessly back through empty history.
+function accountCalendarBounds() {
+  const years = accountYearOptions();
+  const now = new Date();
+  return {
+    min: { year: Math.min(...years), month: 0 },
+    max: { year: now.getFullYear(), month: now.getMonth() },
+  };
+}
+
+function monthIndexOf({ year, month }) {
+  return year * 12 + month;
+}
+
+function clampCalendarMonth(target) {
+  const { min, max } = accountCalendarBounds();
+  if (monthIndexOf(target) < monthIndexOf(min)) return { ...min };
+  if (monthIndexOf(target) > monthIndexOf(max)) return { ...max };
+  return target;
+}
+
+// Ordered by TYPE_COLOR's own key order rather than insertion order, so a
+// day's dots keep the same left-to-right sequence across re-renders.
+const TYPE_DOT_ORDER = Object.keys(TYPE_COLOR);
+
+function dayDotsHtml(types) {
+  return TYPE_DOT_ORDER.filter((t) => types.has(t))
+    .map(
+      (t) =>
+        `<span class="account-cal-dot" style="background:${TYPE_COLOR[t]}" title="${escapeHtml(
+          TYPE_LABEL[t] || t
+        )}"></span>`
+    )
+    .join('');
+}
+
+function accountCalendarHtml() {
+  const { year, month } = accountCalendarMonth;
+  const byDay = completionsByDayForMonth(year, month);
+  const { min, max } = accountCalendarBounds();
+  const atMin = monthIndexOf(accountCalendarMonth) <= monthIndexOf(min);
+  const atMax = monthIndexOf(accountCalendarMonth) >= monthIndexOf(max);
+
+  const firstWeekday = new Date(year, month, 1).getDay();
+  // Day 0 of the next month is the last day of this one.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  const blanks = Array.from({ length: firstWeekday }, () => `<div class="account-cal-cell account-cal-cell--blank"></div>`);
+  const days = Array.from({ length: daysInMonth }, (_, idx) => {
+    const day = idx + 1;
+    const types = byDay.get(day);
+    const isToday = isCurrentMonth && today.getDate() === day;
+    const label = types
+      ? `${MONTH_NAMES[month]} ${day}: ${TYPE_DOT_ORDER.filter((t) => types.has(t))
+          .map((t) => TYPE_LABEL[t] || t)
+          .join(', ')}`
+      : `${MONTH_NAMES[month]} ${day}: nothing logged`;
+    return `
+      <div class="account-cal-cell${isToday ? ' account-cal-cell--today' : ''}" aria-label="${escapeHtml(label)}">
+        <span class="account-cal-daynum">${day}</span>
+        <span class="account-cal-dots">${types ? dayDotsHtml(types) : ''}</span>
+      </div>`;
+  });
+
+  return `
+    <div class="account-cal">
+      <div class="account-cal-header">
+        <button type="button" class="account-cal-nav" id="accountCalPrev" ${atMin ? 'disabled' : ''} aria-label="Previous month">‹</button>
+        <span class="account-cal-title">${MONTH_NAMES[month]} ${year}</span>
+        <button type="button" class="account-cal-nav" id="accountCalNext" ${atMax ? 'disabled' : ''} aria-label="Next month">›</button>
+      </div>
+      <div class="account-cal-grid account-cal-weekdays" aria-hidden="true">
+        ${WEEKDAY_INITIALS.map((d) => `<div class="account-cal-weekday">${d}</div>`).join('')}
+      </div>
+      <div class="account-cal-grid">
+        ${blanks.join('')}${days.join('')}
+      </div>
+    </div>`;
+}
+
 // Pure-CSS pie (conic-gradient) + legend, visualizing the exact same
 // per-type counts as accountStatsHtml() above for the same selected year —
 // no separate year concept here. Colors come from the fixed TYPE_COLOR
@@ -2160,6 +2281,48 @@ async function renderAccountPage() {
   el('accountStats').innerHTML = accountStatsHtml(currentYear);
   el('accountPieChart').innerHTML = accountPieChartHtml(currentYear);
 
+  // Each visit starts on the real current month, regardless of where the
+  // arrows were left last time.
+  const now = new Date();
+  accountCalendarMonth = clampCalendarMonth({ year: now.getFullYear(), month: now.getMonth() });
+  renderAccountCalendar();
+
+  // Redraws the calendar and rebinds its arrows. The arrow handlers live
+  // here rather than being delegated because the whole container's markup
+  // is replaced on every month change.
+  function renderAccountCalendar() {
+    el('accountCalendar').innerHTML = accountCalendarHtml();
+    const prev = el('accountCalPrev');
+    const next = el('accountCalNext');
+    if (prev) prev.onclick = () => stepCalendarMonth(-1);
+    if (next) next.onclick = () => stepCalendarMonth(1);
+  }
+
+  // Stepping across a year boundary drags the rest of the page with it —
+  // the year dropdown, stats, pie and goals all move to the new year, so
+  // the page never shows a calendar and a pie describing different years.
+  function stepCalendarMonth(delta) {
+    const raw = { year: accountCalendarMonth.year, month: accountCalendarMonth.month + delta };
+    if (raw.month < 0) {
+      raw.year -= 1;
+      raw.month = 11;
+    } else if (raw.month > 11) {
+      raw.year += 1;
+      raw.month = 0;
+    }
+    const previousYear = accountCalendarMonth.year;
+    accountCalendarMonth = clampCalendarMonth(raw);
+    renderAccountCalendar();
+
+    if (accountCalendarMonth.year !== previousYear) {
+      const select = el('accountYearSelect');
+      select.value = String(accountCalendarMonth.year);
+      el('accountStats').innerHTML = accountStatsHtml(accountCalendarMonth.year);
+      el('accountPieChart').innerHTML = accountPieChartHtml(accountCalendarMonth.year);
+      updateGoalsSection(accountCalendarMonth.year);
+    }
+  }
+
   // .onchange (not addEventListener) — this select is a static page element
   // that persists across visits, so re-rendering the page must replace the
   // handler rather than stacking a new one on top each time.
@@ -2168,6 +2331,14 @@ async function renderAccountPage() {
     el('accountStats').innerHTML = accountStatsHtml(year);
     el('accountPieChart').innerHTML = accountPieChartHtml(year);
     updateGoalsSection(year);
+    // "All Years" has no month to point at, so it returns the calendar to
+    // today; picking a specific year keeps the month you were looking at.
+    const target =
+      year === 'all'
+        ? { year: new Date().getFullYear(), month: new Date().getMonth() }
+        : { year, month: accountCalendarMonth.month };
+    accountCalendarMonth = clampCalendarMonth(target);
+    renderAccountCalendar();
   };
 
   // ---- Goals ----
