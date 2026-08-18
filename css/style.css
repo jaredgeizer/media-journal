@@ -1190,7 +1190,14 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   font-size: 14.5px;
 }
 
-.account-stats-list { margin-top: 4px; }
+/* Holds the page's closing Total line, sitting under the pie — the top
+   rule separates it from the legend above rather than leaving it
+   floating. */
+.account-stats-list {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--glass-border);
+}
 
 .account-stats-row {
   display: flex;

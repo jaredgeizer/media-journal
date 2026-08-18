@@ -1962,16 +1962,18 @@ function accountStatsForYear(year) {
     .sort((a, b) => b.count - a.count);
 }
 
+// Just the total, rendered at the very bottom of the Account page. The
+// per-type breakdown this used to carry alongside it was the same set of
+// numbers the pie's legend already lists, so it lives there alone now.
+//
+// No empty-state branch: summing an empty list gives 0, and "Total 0"
+// keeps the page's shape identical whether or not the year has anything
+// in it — rather than a message stranded under an empty "By Type".
 function accountStatsHtml(year) {
-  const stats = accountStatsForYear(year);
-  if (!stats.length) {
-    return `<p class="empty-state">Nothing logged ${year === 'all' ? 'yet' : `in ${year}`}.</p>`;
-  }
-  const total = stats.reduce((sum, s) => sum + s.count, 0);
+  const total = accountStatsForYear(year).reduce((sum, s) => sum + s.count, 0);
   return `
     <div class="account-stats-list">
       <div class="account-stats-row account-stats-total"><span>Total</span><span class="account-stats-count">${total}</span></div>
-      ${stats.map((s) => `<div class="account-stats-row"><span>${escapeHtml(s.label)}</span><span class="account-stats-count">${s.count}</span></div>`).join('')}
     </div>`;
 }
 
