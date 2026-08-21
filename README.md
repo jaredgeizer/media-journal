@@ -380,6 +380,13 @@ Because everything is static files, any other static host (Netlify,
 Vercel, Cloudflare Pages, etc.) works the same way — just point it at
 this folder.
 
+## Letting someone else test it
+
+See **[docs/SHARING.md](docs/SHARING.md)** — how to create an account for
+a tester without relying on confirmation emails, how to close public
+sign-ups once the site is shared, and how to remove a tester and their
+data afterward.
+
 ## Adding restaurants (later)
 
 The data model already supports a `restaurant` media type — there's just
