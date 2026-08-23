@@ -4,11 +4,13 @@ A running backlog of features discussed but not yet built. Add to this as new id
 
 ## Social & sharing
 
-- **Share a review to Instagram Stories.** Generate a share-card image client-side (`<canvas>`, sized for Stories — 1080×1920) from the item's poster, title, star rating, and the user's notes. Instagram has no public API for posting directly, so the only reliable path is generating the image and handing it off via the Web Share API's file support (`navigator.share({ files: [...] })`), which lets the user pick Instagram from their OS share sheet themselves. Needs a fallback (plain image download) for browsers without `navigator.share` file support.
+- ~~**Share a review to Instagram Stories.**~~ **Built** (`js/sharecard.js`). Generates a 1080×1920 PNG from the poster, title, stars and notes, then hands it to the OS share sheet via `navigator.share({ files })`, falling back to a download where file sharing isn't supported. Because poster hosts don't reliably send CORS headers (TMDb's are inconsistent), a refused poster falls back to a typographic card built on the media type's color and emoji rather than failing.
+  - *Possible follow-ups:* a preview step before sharing; a Supabase image proxy so posters always make it onto the card, if the fallback turns out to fire often.
 
 ## Personalization
 
-- **Yearly goals.** Let a user set one or more goals per year — e.g. "20 books", "5 movies", "2 shows" — and see progress toward each. Needs a `goals` table (type, target count, media type or combination, year) and a progress calculation over existing completed `items` within that year. Probably wants its own section of the app (or a fuller profile page) to display progress bars/counts.
+*(Yearly goals were listed here and are now built — `goals` table, the goal
+carousel, and custom multi-type goals.)*
 
 ## Social platform (bigger effort — prerequisite for the two below)
 

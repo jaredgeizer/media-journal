@@ -1,6 +1,7 @@
 import { createStore } from './storage.js';
 import { search as searchExternal, tmdbAvailable, gameSearchAvailable, getTVSeasonInfo, getSeasonEpisodeNames, getImdbId, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
+import { shareReviewCard } from './sharecard.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
@@ -462,6 +463,40 @@ function releaseDateRecentlyChecked(item) {
 // the release-date picker min in minWatchedDateValue()).
 function needsReleaseDateFix(item) {
   return !hasReleaseMonth(item) && !releaseDateRecentlyChecked(item);
+}
+
+// ---------- Share card ----------
+
+// One button markup + one handler, used by both the item modal and the end
+// of the review flow. Generating the image isn't instant (an image load
+// plus a 1080x1920 draw and PNG encode), so the button reports progress
+// rather than sitting silent.
+function shareCardButtonHtml(id) {
+  return `<button type="button" class="btn-secondary" id="${id}" style="width:100%;margin-top:8px;">Share this review</button>`;
+}
+
+function wireShareCardButton(id, getItem) {
+  const btn = el(id);
+  if (!btn) return;
+  const label = btn.textContent;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Creating image…';
+    try {
+      const outcome = await shareReviewCard(getItem());
+      // On desktop the share sheet usually isn't available and the file
+      // lands in Downloads instead — silence there just looks broken.
+      btn.textContent = outcome === 'downloaded' ? 'Saved to your downloads' : label;
+    } catch (err) {
+      console.error('Share card failed:', err);
+      btn.textContent = "Couldn't create the image";
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => {
+        if (document.body.contains(btn)) btn.textContent = label;
+      }, 2600);
+    }
+  });
 }
 
 function externalLinkHtml(item) {
@@ -2764,6 +2799,7 @@ function openEditModal(item) {
             ${tagPillsHtml(current)}
             ${current.notes ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin:8px 0 0;">${escapeHtml(current.notes)}</p>` : ''}
             <button type="button" class="btn-secondary" id="editReviewBtn" style="width:100%;margin-top:12px;">Edit Review</button>
+            ${shareCardButtonHtml('shareCardBtn')}
             <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Backlog'}</button>
           </div>
         `
@@ -2781,6 +2817,9 @@ function openEditModal(item) {
   openModalWithContent(html);
   wireDescriptionToggle('editDescription');
   el('modalCloseBtn').addEventListener('click', closeModal);
+  // Reads `current` at click time, not render time, so sharing after an
+  // inline edit picks up the edited rating/notes.
+  wireShareCardButton('shareCardBtn', () => current);
 
   const updateInfoBtn = el('updateInfoBtn');
   if (updateInfoBtn) {
@@ -3038,6 +3077,7 @@ function openReviewModal(item) {
     </div>
     <div class="modal-actions">
       <button type="button" class="btn-primary" id="reviewDoneBtn" style="width:100%">Add to Journal</button>
+      ${shareCardButtonHtml('reviewShareCardBtn')}
     </div>
   `;
   openModalWithContent(html);
@@ -3046,6 +3086,9 @@ function openReviewModal(item) {
     switchTab('journal');
     closeModal();
   });
+  // Just-written rating and notes save as you go (see persist() below), so
+  // `current` is already up to date by the time this is tapped.
+  wireShareCardButton('reviewShareCardBtn', () => current);
 
   async function persist(patch) {
     const updated = await store.updateItem(current.id, patch);
