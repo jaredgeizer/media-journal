@@ -1099,6 +1099,10 @@ function renderBacklog() {
   grid.classList.toggle('journal-feed', backlogViewMode === 'list');
   grid.innerHTML = list.map(backlogViewMode === 'grid' ? cardHtml : backlogEntryHtml).join('');
   el('backlogEmpty').classList.toggle('hidden', list.length > 0);
+  // Counts the post-filter list, so it tracks the type/tag filters rather
+  // than reporting the whole backlog.
+  const countEl = el('backlogCount');
+  if (countEl) countEl.textContent = `${list.length} item${list.length === 1 ? '' : 's'}`;
   grid.querySelectorAll('[data-item-id]').forEach((node) => {
     node.addEventListener('click', () => openEditModal(items.find((i) => i.id === node.dataset.itemId)));
   });
@@ -1444,9 +1448,18 @@ function sortOptionsHtml(name, sorts, currentKey) {
 function renderQuickTags(kind) {
   const selected = kind === 'journal' ? journalSelectedTags : backlogSelectedTags;
   const container = el(`${kind}QuickTags`);
-  container.innerHTML = QUICK_TAGS[kind]
-    .map((t) => `<button type="button" class="chip${selected.has(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`)
-    .join('');
+  // The backlog count lives inside this container rather than beside it so
+  // it sits directly after the last chip — .chip-scroll is flex: 1, so a
+  // sibling would get pushed to the far end of the row instead. Its text is
+  // filled in by renderBacklog(), which is where the filtered list is
+  // computed; this only ever renders the empty slot.
+  container.innerHTML =
+    QUICK_TAGS[kind]
+      .map((t) => `<button type="button" class="chip${selected.has(t) ? ' active' : ''}" data-value="${escapeHtml(t)}">${escapeHtml(stripTagEmoji(t))}</button>`)
+      .join('') + (kind === 'backlog' ? '<span class="chip-count" id="backlogCount"></span>' : '');
+  // Scoped to .chip so the count span is never treated as a filter chip
+  // here or in syncFilterUI() — '.chip-count' is a separate class token and
+  // doesn't match '.chip'.
   container.querySelectorAll('.chip').forEach((chip) => {
     chip.addEventListener('click', () => toggleQuickTag(kind, chip.dataset.value));
   });
