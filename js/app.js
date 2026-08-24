@@ -477,8 +477,13 @@ function needsReleaseDateFix(item) {
 // of the review flow. Generating the image isn't instant (an image load
 // plus a 1080x1920 draw and PNG encode), so the button reports progress
 // rather than sitting silent.
+// No inline sizing: this button always sits in a flex row alongside another
+// action, and layout belongs to that row. The inline margin-top it used to
+// carry was what knocked the pair out of alignment — under the row's
+// default `stretch`, a top margin makes one button both shorter and lower
+// than its neighbour.
 function shareCardButtonHtml(id) {
-  return `<button type="button" class="btn-secondary" id="${id}" style="width:100%;margin-top:8px;">Share this review</button>`;
+  return `<button type="button" class="btn-secondary" id="${id}">Share this review</button>`;
 }
 
 function wireShareCardButton(id, getItem) {
@@ -3046,20 +3051,22 @@ function openEditModal(item) {
     ${
       current.status === 'completed'
         ? `
-          <div class="field">
+          <div class="modal-section">
             <label>Your review</label>
             <div class="card-stars" style="font-size:18px;">${'★'.repeat(current.rating || 0)}${'☆'.repeat(5 - (current.rating || 0))}</div>
             ${tagPillsHtml(current)}
             ${current.notes ? `<p class="journal-entry-notes" style="-webkit-line-clamp:unset;margin:8px 0 0;">${escapeHtml(current.notes)}</p>` : ''}
-            <button type="button" class="btn-secondary" id="editReviewBtn" style="width:100%;margin-top:12px;">Edit Review</button>
-            ${shareCardButtonHtml('shareCardBtn')}
-            <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:4px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Backlog'}</button>
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary" id="editReviewBtn">Edit Review</button>
+              ${shareCardButtonHtml('shareCardBtn')}
+            </div>
           </div>
+          <button type="button" class="btn-ghost" id="unmarkBtn" style="width:100%;margin-top:12px;">${hasProgress(current) ? '↩ Move back to Currently Reading/Watching' : '↩ Move back to Backlog'}</button>
         `
         : current.status === 'in_progress'
         ? `
           <button type="button" class="btn-secondary" id="updateProgressBtn" style="width:100%;margin-bottom:12px;">Update</button>
-          <button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Finished</button>
+          <button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ ${current.media_type === 'tv' ? 'Finished Season' : 'Finished'}</button>
         `
         : `<button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Mark as ${COMPLETED_VERB[current.media_type] || 'Done'}</button>`
     }
@@ -3339,7 +3346,7 @@ function openReviewModal(item, seasonContext = null) {
       <textarea id="reviewNotes" placeholder="Thoughts, quotes, where you left off…">${escapeHtml(current.notes || '')}</textarea>
     </div>
     <div class="modal-actions">
-      <button type="button" class="btn-primary" id="reviewDoneBtn" style="width:100%">Add to Journal</button>
+      <button type="button" class="btn-primary" id="reviewDoneBtn">Add to Journal</button>
       ${shareCardButtonHtml('reviewShareCardBtn')}
     </div>
   `;

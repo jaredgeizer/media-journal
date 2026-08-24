@@ -780,7 +780,14 @@ main {
 
 .progress-row input[type="number"] { width: 70px; flex: none; }
 .progress-row input[type="range"] { flex: 1; min-width: 120px; }
-.progress-row select { width: auto; flex: none; }
+/* Scoped through .field deliberately. turnIntoSelect() swaps these number
+   inputs for <select>s once TMDb season data arrives, and a bare
+   `.progress-row select` ties on specificity with `.field select { width:
+   100% }` further down the file — so the later rule won on source order
+   alone, the select filled the row, and "of 2" wrapped onto its own line.
+   Matching the 70px used for the number-input state keeps
+   "Season [1] of 2" on one line. */
+.field .progress-row select { width: 78px; flex: none; }
 .progress-subtext { font-size: 12.5px; color: var(--text-secondary); }
 
 #currentlyContainer { margin-bottom: 28px; }
@@ -1737,13 +1744,41 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   flex-shrink: 0;
 }
 
+/* Rules off a block of the sheet as one unit — used for the review on a
+   completed item, so the rating, tags, notes and its two actions read
+   together rather than floating between the description and the
+   move-back button. */
+.modal-section {
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  padding: 14px 0 16px;
+  margin-bottom: 4px;
+}
+.modal-section > label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+/* The section already provides its own bottom padding. */
+.modal-section .modal-actions { margin-top: 14px; }
+
 .modal-actions {
   display: flex;
   gap: 10px;
   margin-top: 18px;
   flex-wrap: wrap;
+  /* Explicit rather than relying on the flex default: buttons in this row
+     must match height even when one is btn-primary and the other
+     btn-secondary, which differ by a border. */
+  align-items: stretch;
 }
-.modal-actions > * { flex: 1; }
+/* flex-basis 0 so the row splits evenly regardless of label length, and
+   min-width 0 so a long label shrinks instead of forcing a wrap. */
+.modal-actions > * { flex: 1 1 0; min-width: 0; }
 
 /* ---------- Clean up Journal ---------- */
 
