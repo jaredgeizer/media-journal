@@ -21,10 +21,32 @@ create table if not exists public.items (
   external_url    text,       -- link to the source page (e.g. Apple Podcasts, Google Books)
 
   -- journal state
-  status         text not null default 'wishlist' check (status in ('wishlist', 'in_progress', 'completed')),
+  --
+  -- 'ended' is for TV show *containers* only: a series you've finished,
+  -- where the seasons you watched are recorded as their own completed
+  -- entries (see season_number below). It is deliberately NOT 'completed'
+  -- — 'completed' is what puts an item in the Journal and counts it in
+  -- every statistic, and a container should do neither. Keeping
+  -- containers out of that status means all the existing
+  -- `status = 'completed'` checks keep working untouched rather than each
+  -- needing its own "...unless it's a TV container" exception.
+  --
+  -- The invariant to preserve: a TV container is never 'completed'.
+  -- (TV rows predating per-season tracking are the exception — they stay
+  -- as show-level completed entries, since there's no way to know which
+  -- seasons they covered.)
+  status         text not null default 'wishlist' check (status in ('wishlist', 'in_progress', 'completed', 'ended')),
   rating         smallint check (rating between 1 and 5),
   notes          text,
   tags           text[] not null default '{}',
+
+  -- Which season this row records, for TV rows emitted when a season is
+  -- finished. NULL means "not a season entry": every non-TV item, every
+  -- show container, and legacy show-level TV entries. A season entry
+  -- carries its own rating, notes and date_completed, and its external_id
+  -- is suffixed (e.g. 'tv-1399-s2') so matchesLibraryItem() doesn't fold
+  -- every season of a show into one item.
+  season_number  smallint check (season_number > 0),
 
   -- progress tracking (books, video games & TV shows only, while status = 'in_progress')
   progress_percent smallint check (progress_percent between 0 and 100),  -- books & video games

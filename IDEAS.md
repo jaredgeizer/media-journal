@@ -4,8 +4,8 @@ A running backlog of features discussed but not yet built. Add to this as new id
 
 ## Social & sharing
 
-- ~~**Share a review to Instagram Stories.**~~ **Built** (`js/sharecard.js`). Generates a 1080×1920 PNG from the poster, title, stars and notes, then hands it to the OS share sheet via `navigator.share({ files })`, falling back to a download where file sharing isn't supported. Because poster hosts don't reliably send CORS headers (TMDb's are inconsistent), a refused poster falls back to a typographic card built on the media type's color and emoji rather than failing.
-  - *Possible follow-ups:* a preview step before sharing; a Supabase image proxy so posters always make it onto the card, if the fallback turns out to fire often.
+- ~~**Share a review to Instagram Stories.**~~ **Done — shipped and confirmed working on a real device.** (`js/sharecard.js`.) Generates a 1080×1920 PNG from the poster, title, stars and notes, then hands it to the OS share sheet via `navigator.share({ files })`, falling back to a download where file sharing isn't supported. Because poster hosts don't reliably send CORS headers (TMDb's are inconsistent), a refused poster falls back to a typographic card built on the media type's color and emoji rather than failing.
+  - *Possible refinements, not blocking:* a preview step before sharing; a Supabase image proxy so posters always make it onto the card, if the fallback turns out to fire often in practice.
 
 ## Personalization
 
@@ -30,7 +30,28 @@ Discussed conceptually (see README/session history for the fuller breakdown): pr
   - **Existing completed shows stay as they are** — legacy show-level entries. There's no way to know which seasons an old entry actually covered, so nothing gets migrated or invented.
   - **Seasons become the unit everywhere**, not just the Account page: the pie, the activity calendar, the total, and yearly goals all count completed seasons, so no two screens disagree about what a "completed TV thing" is.
 
-  **Open question — what "series finished" means.** These two decisions pull against each other: seasons-only says the show never lands in the Journal, but `status: 'completed'` is currently exactly what puts an item *in* the Journal (`renderJournal()`, and `accountStatsForYear()` counts it). So "mark the series finished" needs a home that is neither Currently Watching, Backlog, nor a rated Journal entry. Either a fourth status (a schema change to the `status` CHECK constraint in `supabase/schema.sql`), or keep `completed` but exclude TV *containers* from Journal rendering and from every stat — leaving the mildly odd notion of a completed item that never appears in the Journal. Settle this first; most of the rest follows from it.
+  **Resolved — "series finished" is a fourth status, `'ended'`.** The open
+  question here was whether to add a status or keep `completed` and exclude
+  containers everywhere. Settled in favour of the fourth status: `status =
+  'completed'` is tested in **13 separate places** in `js/app.js` (Journal
+  rendering, four stat functions, Clean Up, the tag list, Discover's
+  already-seen badge, the edit modal), and a container that is never
+  `completed` drops out of all of them for free. The alternative meant
+  hand-adding a "...unless it's a TV container" clause to each, where
+  missing one gives a silently wrong count with nothing failing loudly.
+
+  The invariant to hold onto: **a TV container is never `'completed'`.**
+
+  **Also decided: a finished show is visible only through its season
+  entries.** It leaves Backlog and Currently Watching and gets no view of
+  its own — the Journal already holds one entry per season watched, which
+  is the actual record.
+
+  **Schema is done and verified** (`supabase/one-off/add-season-entries.sql`,
+  plus `supabase/schema.sql` for fresh projects): the `status` CHECK now
+  allows `'ended'`, and a nullable `season_number` marks a row as recording
+  one season. NULL means "not a season entry" — every non-TV item, every
+  container, and every legacy show-level TV row.
 
   **Existing machinery this has to reconcile with:**
   - `checkForNewTvSeasons()` (`js/app.js`) already does a season-aware cycle: a completed show that gains a new season on TMDb returns to Backlog tagged **🆕 New Season**, pre-positioned at episode 1. That overlaps directly with the "move to Backlog until the next season airs" outcome — the two should become one mechanism, not two that both move shows around.
