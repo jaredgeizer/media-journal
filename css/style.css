@@ -789,10 +789,11 @@ main {
 
 .currently-card-poster {
   width: 100%;
-  /* 15% shorter than a standard 2:3 poster at the same width (3 × 0.85 =
-     2.55, i.e. 40/51). object-fit: cover crops to the shorter box rather
-     than squashing the artwork. */
-  aspect-ratio: 40 / 51;
+  /* Two successive 15% reductions from a standard 2:3 poster at the same
+     width: 3 × 0.85 × 0.85 = 2.1675, leaving the box at ~72% of a full
+     poster's height (40/43.35). object-fit: cover crops to the shorter
+     box rather than squashing the artwork. */
+  aspect-ratio: 40 / 43.35;
   object-fit: cover;
   background: rgba(var(--accent), 0.16);
   display: flex;
