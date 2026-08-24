@@ -3065,7 +3065,7 @@ function openEditModal(item) {
         `
         : current.status === 'in_progress'
         ? `
-          <button type="button" class="btn-secondary" id="updateProgressBtn" style="width:100%;margin-bottom:12px;">Update</button>
+          <button type="button" class="btn-secondary" id="updateProgressBtn" style="width:100%;margin-bottom:12px;">Update Progress</button>
           <button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ ${current.media_type === 'tv' ? 'Finished Season' : 'Finished'}</button>
         `
         : `<button type="button" class="btn-primary" id="markWatchedBtn" style="width:100%;margin-bottom:12px;">✓ Mark as ${COMPLETED_VERB[current.media_type] || 'Done'}</button>`
