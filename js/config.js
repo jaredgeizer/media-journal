@@ -17,9 +17,18 @@
 //   1. Go to https://console.cloud.google.com, create/select a project
 //   2. APIs & Services → Library → enable "Books API"
 //   3. APIs & Services → Credentials → Create Credentials → API key → copy it below
-//   4. Recommended: click the new key → restrict it to the Books API, and
-//      under "Application restrictions" add your GitHub Pages URL as an
-//      allowed HTTP referrer (e.g. https://jaredgeizer.github.io/*)
+//   4. Restrict the key — required, not optional. Click into it and set
+//      "API restrictions" to the Books API only, and "Application
+//      restrictions" to Websites (formerly labelled "HTTP referrers")
+//      with your Pages URL, e.g. https://jaredgeizer.github.io/*
+//
+//      The API restriction is the real boundary; the Websites check only
+//      deters casual reuse, since Google trusts a Referer header that a
+//      non-browser client sets freely. Unlike the Supabase anon key
+//      above — public by design, with RLS protecting the data — this one
+//      bills against your Google Cloud project, so an unrestricted copy
+//      in a public repo is a genuine problem. GitHub's secret scanning
+//      will flag it, correctly. See the README's Google Books section.
 //
 // IGDB credentials (required for video game search) — these don't go here.
 // IGDB blocks direct browser requests (no CORS headers), so its Twitch
