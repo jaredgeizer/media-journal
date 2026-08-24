@@ -106,11 +106,22 @@ Their usage runs through the same API credentials as yours:
 None of these are close to being a problem for one extra person. They're
 listed so nothing is a surprise.
 
-One loose end worth closing while you're sharing the URL: the main README
-recommends restricting the Google Books key to your Pages URL as an
-allowed HTTP referrer (Google Cloud Console → Credentials → the key →
-Application restrictions). It's public in `js/config.js`, so without that
-restriction anyone who finds it can spend your daily quota.
+The Google Books key needs care that the others don't. It's public in
+`js/config.js`, and unlike the Supabase anon key (protected by Row Level
+Security by design) or the read-only TMDb token, it bills and
+rate-limits against your Google Cloud project. GitHub's secret scanning
+flags it on a public repo, correctly.
+
+Keep it restricted — **API restrictions** limited to the Books API, and
+**Application restrictions** set to your Pages URL as an allowed HTTP
+referrer (Google Cloud Console → Credentials → the key). The API
+restriction is the important half: it's what stops an exposed key
+reaching any other API enabled on the project.
+
+If a key ever does get published unrestricted, restricting it afterward
+isn't enough — it's in git history permanently and bots scrape GitHub
+continuously. Delete it in Google Cloud and issue a fresh restricted
+one. See the README's Google Books section for the full steps.
 
 ## Removing a tester afterward
 

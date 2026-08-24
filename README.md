@@ -224,12 +224,37 @@ quota with everyone else doing the same — you'll occasionally see
 2. **APIs & Services → Library** → search for and enable **Books API**.
 3. **APIs & Services → Credentials → Create Credentials → API key**,
    then copy it.
-4. Recommended: click into the new key and restrict it — under **API
-   restrictions** limit it to the Books API, and under **Application
-   restrictions** add your GitHub Pages URL as an allowed HTTP referrer
-   (e.g. `https://<your-username>.github.io/*`) so it can't be used from
-   anywhere else if someone finds it in your published JS.
+4. **Restrict the key before you paste it anywhere. Not optional.**
+   Click into the new key and set both:
+   - **API restrictions** → limit it to the **Books API** only. This is
+     the one that matters most: an unrestricted key can call any API
+     enabled on the project, so if billing is ever turned on there, an
+     exposed key is a spending risk and not just a quota one.
+   - **Application restrictions** → **HTTP referrers**, and add your
+     GitHub Pages URL (e.g. `https://<your-username>.github.io/*`).
+     Worth knowing this deters casual reuse rather than preventing it —
+     Google checks the `Referer` header, which a non-browser client can
+     set to anything. The API restriction is the real boundary.
 5. Paste it into `googleBooksApiKey` in `js/config.js`.
+
+> **This key is genuinely published, unlike the others in that file.**
+> The Supabase anon key is designed to be public (Row Level Security,
+> not secrecy, is what protects the data) and the TMDb token is
+> read-only against a public catalog. A Google API key is different: it
+> bills and rate-limits against *your* Google Cloud project. GitHub's
+> secret scanning will raise an alert for it on a public repo, and that
+> alert is correct.
+>
+> It also can't be un-published. Once committed it lives in git history
+> forever, and bots scrape GitHub continuously — deleting it from
+> `js/config.js` later does not undo the exposure. If a key does leak
+> unrestricted, **rotate it** (delete it in Google Cloud, create a fresh
+> restricted one); restricting the old key after the fact isn't enough
+> on its own.
+>
+> The key is optional, too — `searchBooks()` omits it when absent and
+> book search falls back to the shared anonymous quota, so deleting it
+> outright is a legitimate choice if you'd rather not manage one.
 
 ## Setting up video game search (IGDB)
 
