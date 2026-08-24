@@ -303,8 +303,8 @@ IGDB is owned by Twitch, so its credentials are Twitch app credentials:
 The function exchanges those credentials for a Twitch access token itself
 and caches it, so there's nothing to refresh by hand. Free for
 non-commercial use, rate limited to 4 requests/second — far more than
-personal use needs. The footer already includes a "Game data from IGDB"
-credit line.
+personal use needs. Every page's footer already credits IGDB alongside
+the other data sources, so there's nothing to add.
 
 > **Note on the deployed URL:** the function is currently deployed under
 > the slug `super-task` rather than `igdb-search` — Supabase's dashboard

@@ -1538,11 +1538,38 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
 
 .demo-banner a { color: rgb(var(--accent)); text-decoration: none; font-weight: 600; }
 
-.tmdb-attribution {
+/* Credits for every data source the app pulls from, plus the byline.
+   Renamed from .tmdb-attribution, which stopped being accurate once this
+   carried five services. Deliberately quiet — a footer, not a section. */
+.site-footer {
   text-align: center;
   font-size: 11px;
+  line-height: 1.5;
   color: var(--text-tertiary);
   padding: 10px 16px 40px;
+}
+
+.site-footer p { margin: 0 0 4px; }
+.site-footer p:last-child { margin-bottom: 0; }
+
+/* TMDb requires this sentence verbatim, so it has to be present — but the
+   category mapping is the part worth reading first, so this sits back. */
+.site-footer-legal { opacity: 0.75; }
+
+.site-footer-byline { margin-top: 8px !important; }
+
+/* login.html and quick-add.html both centre a card in a full-height
+   .auth-wrap. Appending a footer after that would push the page past the
+   fold and introduce a scrollbar on what should be a single screen, so on
+   those pages the wrap flexes to fill whatever is left instead. */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.auth-page .auth-wrap {
+  min-height: 0;
+  flex: 1;
 }
 
 .hidden { display: none !important; }
