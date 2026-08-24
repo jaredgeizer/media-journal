@@ -113,10 +113,11 @@ rate-limits against your Google Cloud project. GitHub's secret scanning
 flags it on a public repo, correctly.
 
 Keep it restricted — **API restrictions** limited to the Books API, and
-**Application restrictions** set to your Pages URL as an allowed HTTP
-referrer (Google Cloud Console → Credentials → the key). The API
-restriction is the important half: it's what stops an exposed key
-reaching any other API enabled on the project.
+**Application restrictions** → **Websites** (formerly labelled "HTTP
+referrers") set to `https://jaredgeizer.github.io/*`, both under Google
+Cloud Console → Credentials → the key. The API restriction is the
+important half: it's what stops an exposed key reaching any other API
+enabled on the project.
 
 If a key ever does get published unrestricted, restricting it afterward
 isn't enough — it's in git history permanently and bots scrape GitHub

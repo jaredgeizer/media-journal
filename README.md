@@ -230,8 +230,15 @@ quota with everyone else doing the same — you'll occasionally see
      the one that matters most: an unrestricted key can call any API
      enabled on the project, so if billing is ever turned on there, an
      exposed key is a spending risk and not just a quota one.
-   - **Application restrictions** → **HTTP referrers**, and add your
-     GitHub Pages URL (e.g. `https://<your-username>.github.io/*`).
+   - **Application restrictions** → **Websites** (Google's older name for
+     this was "HTTP referrers"), and add your GitHub Pages URL — e.g.
+     `https://<your-username>.github.io/*`, which covers every path on
+     your site. Pick Websites rather than the other two options: *IP
+     addresses* is for server-side callers with fixed addresses, but
+     these requests come from your users' browsers, whose IPs you can't
+     know; *iOS apps* keys to a native bundle ID, which a web app has
+     none of even when added to the Home Screen.
+
      Worth knowing this deters casual reuse rather than preventing it —
      Google checks the `Referer` header, which a non-browser client can
      set to anything. The API restriction is the real boundary.
