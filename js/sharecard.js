@@ -154,6 +154,16 @@ function starsText(rating) {
   return '★'.repeat(n) + '☆'.repeat(5 - n);
 }
 
+// Mirrors displayTitle() in js/app.js. A TV row carrying a season_number
+// records one season rather than the whole show, and a shared card that just
+// said "Severance" would misrepresent which season was rated.
+function cardTitle(item) {
+  const base = item.title || 'Untitled';
+  return item.media_type === 'tv' && item.season_number != null
+    ? `${base} · Season ${item.season_number}`
+    : base;
+}
+
 function subtitleText(item) {
   return [TYPE_LABEL[item.media_type] || item.media_type, item.creator, item.year]
     .filter(Boolean)
@@ -173,7 +183,7 @@ function drawDetails(ctx, item, top) {
 
   ctx.fillStyle = INK;
   ctx.font = `700 68px ${FONT_STACK}`;
-  y = drawLines(ctx, wrapLines(ctx, item.title || 'Untitled', maxWidth, 3), pad, y, 82);
+  y = drawLines(ctx, wrapLines(ctx, cardTitle(item), maxWidth, 3), pad, y, 82);
 
   const subtitle = subtitleText(item);
   if (subtitle) {
@@ -306,13 +316,13 @@ function safeFilename(title) {
 // which is worth saying out loud rather than looking like nothing happened.
 export async function shareReviewCard(item) {
   const blob = await renderReviewCard(item);
-  const file = new File([blob], `${safeFilename(item.title)}.png`, { type: 'image/png' });
+  const file = new File([blob], `${safeFilename(cardTitle(item))}.png`, { type: 'image/png' });
 
   // canShare({ files }) is the guard that matters — navigator.share can
   // exist while file sharing specifically is unsupported.
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: item.title || 'My review' });
+      await navigator.share({ files: [file], title: cardTitle(item) });
       return 'shared';
     } catch (err) {
       // The user dismissing the share sheet throws AbortError. That's not

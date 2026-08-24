@@ -751,7 +751,17 @@ async function getEpisodeName(item, info, season, episode) {
 // Shortlist/Recommended: toggleable in the edit modal, filterable in
 // Backlog, and auto-stripped once the show is marked watched again).
 async function checkForNewTvSeasons() {
-  const candidates = items.filter((i) => i.media_type === 'tv' && i.status === 'completed' && tmdbTvId(i));
+  // Two kinds of "done with this show" qualify: containers retired as
+  // 'ended' by the season flow, and legacy show-level rows completed before
+  // per-season tracking existed. Season entries are excluded — they record a
+  // season that's already finished and can never gain another.
+  const candidates = items.filter(
+    (i) =>
+      i.media_type === 'tv' &&
+      !isSeasonEntry(i) &&
+      (i.status === 'ended' || i.status === 'completed') &&
+      tmdbTvId(i)
+  );
   let changed = false;
   for (const item of candidates) {
     const info = await getSeasonInfoCached(item);
@@ -987,6 +997,159 @@ function cardHtml(item) {
     </div>`;
 }
 
+// ---------- Season entries ----------
+//
+// A TV show is a *container* that lives in Backlog or Currently Watching and
+// never reaches the Journal itself. Finishing a season emits its own
+// completed row — with its own rating, notes and watched date — so season 2
+// can be rated differently from season 4.
+//
+// season_number is what distinguishes the two. NULL means "not a season
+// entry": every non-TV item, every container, and every legacy show-level TV
+// row from before this existed (those stay as they are — there's no way to
+// know which seasons an old entry covered).
+
+function isSeasonEntry(item) {
+  return item.media_type === 'tv' && item.season_number != null;
+}
+
+// A container is a TV row that isn't a season entry and isn't one of the old
+// show-level completed rows. The invariant that makes the rest of the app
+// work unchanged: a container is never 'completed'.
+function isShowContainer(item) {
+  return item.media_type === 'tv' && item.season_number == null && item.status !== 'completed';
+}
+
+// Title as shown to a person. The stored title stays the bare show name so
+// search, matching and dedupe keep working on it; the season is appended
+// only for display.
+function displayTitle(item) {
+  return isSeasonEntry(item) ? `${item.title} · Season ${item.season_number}` : item.title;
+}
+
+// Suffixed so matchesLibraryItem() sees each season as its own item rather
+// than folding every season of a show into one. Containers keep the bare
+// 'tv-1399'; a TMDb search result therefore matches the container, not a
+// season entry.
+function seasonExternalId(container, seasonNumber) {
+  return container.external_id ? `${container.external_id}-s${seasonNumber}` : null;
+}
+
+function findSeasonEntry(container, seasonNumber) {
+  const externalId = seasonExternalId(container, seasonNumber);
+  return items.find(
+    (i) =>
+      isSeasonEntry(i) &&
+      i.season_number === seasonNumber &&
+      (externalId ? i.external_id === externalId : i.title === container.title)
+  );
+}
+
+// Emits the completed row for a finished season, copying the show's
+// identifying fields so the entry stands on its own in the Journal. Returns
+// the existing entry instead of a duplicate if this season was already
+// recorded — finishing the same season twice (re-watching, or tapping past
+// the end again) shouldn't create two rows.
+async function createSeasonEntry(container, seasonNumber) {
+  const existing = findSeasonEntry(container, seasonNumber);
+  if (existing) return existing;
+  const entry = await store.addItem({
+    media_type: 'tv',
+    title: container.title,
+    creator: container.creator || null,
+    year: container.year || null,
+    poster_url: container.poster_url || null,
+    description: container.description || null,
+    external_source: container.external_source || null,
+    external_id: seasonExternalId(container, seasonNumber),
+    external_url: container.external_url || null,
+    season_number: seasonNumber,
+    status: 'completed',
+    rating: null,
+    notes: null,
+    tags: [],
+    date_completed: new Date().toISOString(),
+  });
+  items.unshift(entry);
+  return entry;
+}
+
+// What happens to the show once a season is done. 'keep' and 'backlog' both
+// pre-position the pointer at episode 1 of the next season so resuming
+// continues the story; 'ended' retires the container to a status that is
+// deliberately not 'completed' (see schema.sql).
+const SEASON_OUTCOMES = {
+  keep: { label: 'Still watching', hint: 'Next season is out' },
+  backlog: { label: 'Move to Backlog', hint: 'Waiting for the next season' },
+  ended: { label: 'Series finished', hint: 'No more seasons' },
+};
+
+function seasonOutcomePatch(outcome, seasonNumber) {
+  if (outcome === 'ended') return { status: 'ended' };
+  return {
+    status: outcome === 'backlog' ? 'wishlist' : 'in_progress',
+    progress_season: seasonNumber + 1,
+    progress_episode: 1,
+  };
+}
+
+// Pre-selects the likely answer rather than asking cold: if TMDb lists a
+// season beyond this one it's probably out, otherwise the series has
+// probably ended. Only ever a default — all three stay selectable, because
+// TMDb is regularly stale on unannounced renewals and wrong about which
+// series have genuinely ended, and the user knows things it doesn't.
+function defaultSeasonOutcome(info, seasonNumber) {
+  const hasNext = info && info.seasons.some((s) => s.seasonNumber === seasonNumber + 1);
+  return hasNext ? 'keep' : 'ended';
+}
+
+// All three outcomes are always rendered and always selectable — the
+// default is a head start, not a decision made for the user.
+function seasonOutcomeFieldHtml({ container, defaultOutcome }) {
+  const options = Object.entries(SEASON_OUTCOMES)
+    .map(
+      ([key, { label, hint }]) => `
+        <button type="button" class="season-outcome${key === defaultOutcome ? ' active' : ''}" data-outcome="${key}">
+          <span class="season-outcome-label">${escapeHtml(label)}</span>
+          <span class="season-outcome-hint">${escapeHtml(hint)}</span>
+        </button>`
+    )
+    .join('');
+  return `
+    <div class="field">
+      <label>What about ${escapeHtml(container.title)}?</label>
+      <div class="season-outcome-row" id="seasonOutcomeRow">${options}</div>
+    </div>`;
+}
+
+// Applies the chosen outcome to the container. Separate from the season
+// entry entirely — the entry is already saved by the time this runs, so
+// changing your mind about the show never risks the review you just wrote.
+async function applySeasonOutcome(container, seasonNumber, outcome) {
+  const updated = await store.updateItem(container.id, seasonOutcomePatch(outcome, seasonNumber));
+  const idx = items.findIndex((i) => i.id === container.id);
+  if (idx !== -1) items[idx] = updated;
+  renderBacklog();
+  renderJournal();
+  renderCurrently();
+  return updated;
+}
+
+// The whole "a season just finished" flow: record the season, apply the
+// default outcome immediately, then open the review modal so the season can
+// be rated and the outcome changed if the default guessed wrong.
+//
+// The outcome is applied up front rather than on modal close so that
+// dismissing the modal still leaves the show in a sensible state — a season
+// finished and nothing moved would strand the show mid-season forever.
+async function finishSeason(container, seasonNumber) {
+  const info = await getSeasonInfoCached(container);
+  const entry = await createSeasonEntry(container, seasonNumber);
+  const defaultOutcome = defaultSeasonOutcome(info, seasonNumber);
+  await applySeasonOutcome(container, seasonNumber, defaultOutcome);
+  openReviewModalSafely(entry, { container, seasonNumber, defaultOutcome });
+}
+
 function journalEntryHtml(item) {
   const dateStr = item.date_completed
     ? new Date(item.date_completed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -997,7 +1160,7 @@ function journalEntryHtml(item) {
       ${posterOrEmoji(item)}
       <div class="journal-entry-body">
         <div class="journal-entry-header">
-          <p class="journal-entry-title">${escapeHtml(item.title)}</p>
+          <p class="journal-entry-title">${escapeHtml(displayTitle(item))}</p>
           <span class="journal-entry-date">${dateStr}</span>
         </div>
         <p class="journal-entry-meta">${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
@@ -1148,7 +1311,7 @@ function backlogEntryHtml(item) {
       ${posterOrEmoji(item)}
       <div class="journal-entry-body">
         <div class="journal-entry-header">
-          <p class="journal-entry-title">${escapeHtml(item.title)}</p>
+          <p class="journal-entry-title">${escapeHtml(displayTitle(item))}</p>
         </div>
         <p class="journal-entry-meta">${TYPE_LABEL[item.media_type]}${item.creator ? ' · ' + escapeHtml(item.creator) : ''}</p>
         ${tagPillsHtml(item)}
@@ -1223,12 +1386,18 @@ function renderCurrently() {
       const episode = current.progress_episode || 1;
       const info = await getSeasonInfoCached(current);
       const epCount = episodeCountForSeason(info, season);
-      const hasNextSeason = info && info.seasons.some((s) => s.seasonNumber === season + 1);
-      const patch =
-        epCount && episode >= epCount && hasNextSeason
-          ? { progress_season: season + 1, progress_episode: 1 }
-          : { progress_episode: episode + 1 };
-      const updated = await store.updateItem(id, patch);
+
+      // Finishing the last episode of a season now records that season
+      // rather than nudging the counter along. This also closes a gap: the
+      // old rollover required a *next* season to exist, so finishing the
+      // final season just incremented progress_episode past the end and the
+      // show sat there forever.
+      if (epCount && episode >= epCount) {
+        await finishSeason(current, season);
+        return;
+      }
+
+      const updated = await store.updateItem(id, { progress_episode: episode + 1 });
       const idx = items.findIndex((i) => i.id === id);
       items[idx] = updated;
       renderCurrently();
@@ -2779,7 +2948,7 @@ function openEditModal(item) {
     <div class="modal-header">
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
-        <p class="modal-title">${escapeHtml(current.title)}</p>
+        <p class="modal-title">${escapeHtml(displayTitle(current))}</p>
         <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${modalDateLabel(current) ? ' · ' + escapeHtml(modalDateLabel(current)) : ''}</p>
         ${current.media_type === 'tv' ? `<p class="modal-subtitle" id="modalSeasonCount"></p>` : ''}
       </div>
@@ -3062,18 +3231,23 @@ function minWatchedDateValue(item) {
   return hasReleaseMonth(item) ? dateInputValue(item.release_date) : '';
 }
 
-function openReviewModal(item) {
+// `seasonContext` is passed only when this modal was opened by finishing a
+// season: { container, seasonNumber, defaultOutcome }. It adds the "what
+// happens to the show now" chooser, so rating the season and deciding the
+// show's fate happen in one modal rather than two in a row.
+function openReviewModal(item, seasonContext = null) {
   let current = item;
 
   const html = `
     <div class="modal-header">
       ${posterOrEmoji(current, 'modal-poster')}
       <div style="flex:1">
-        <p class="modal-title">${escapeHtml(current.title)}</p>
+        <p class="modal-title">${escapeHtml(displayTitle(current))}</p>
         <p class="modal-subtitle">${TYPE_LABEL[current.media_type]}${current.creator ? ' · ' + escapeHtml(current.creator) : ''}${modalDateLabel(current) ? ' · ' + escapeHtml(modalDateLabel(current)) : ''}</p>
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
+    ${seasonContext ? seasonOutcomeFieldHtml(seasonContext) : ''}
     ${externalLinkHtml(current)}
     <div class="field">
       <label>Your rating</label>
@@ -3099,6 +3273,16 @@ function openReviewModal(item) {
     switchTab('journal');
     closeModal();
   });
+
+  if (seasonContext) {
+    const row = el('seasonOutcomeRow');
+    row.querySelectorAll('.season-outcome').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        row.querySelectorAll('.season-outcome').forEach((b) => b.classList.toggle('active', b === btn));
+        await applySeasonOutcome(seasonContext.container, seasonContext.seasonNumber, btn.dataset.outcome);
+      });
+    });
+  }
   // Just-written rating and notes save as you go (see persist() below), so
   // `current` is already up to date by the time this is tapped.
   wireShareCardButton('reviewShareCardBtn', () => current);
@@ -3306,6 +3490,14 @@ function openAddModal(prefill = {}) {
 // in any extra fields, e.g. the progress value that triggered it), then
 // routes to the review modal exactly like tapping Finished would.
 async function markItemCompleted(item, extraPatch = {}) {
+  // A TV show container never becomes 'completed' — finishing it records
+  // the season you're on and then asks what happens to the show. Legacy
+  // show-level TV rows (season_number null but already completed) aren't
+  // containers and don't come through here.
+  if (isShowContainer(item)) {
+    await finishSeason(item, item.progress_season || 1);
+    return items.find((i) => i.id === item.id);
+  }
   const updated = await store.updateItem(item.id, {
     ...extraPatch,
     status: 'completed',
@@ -3324,9 +3516,9 @@ async function markItemCompleted(item, extraPatch = {}) {
 // The item is already safely saved by the time this runs — if building the
 // review UI itself fails for some reason, don't leave the user stranded
 // wondering whether the save even happened.
-function openReviewModalSafely(item) {
+function openReviewModalSafely(item, seasonContext = null) {
   try {
-    openReviewModal(item);
+    openReviewModal(item, seasonContext);
   } catch (err) {
     console.error('Failed to open the review modal:', err);
     closeModal();

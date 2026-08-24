@@ -570,6 +570,41 @@ main {
   padding: 0 2px;
 }
 
+/* "What about this show?" chooser, shown when a season is finished. All
+   three outcomes are always visible — the pre-selected one is only a head
+   start, so it reads as a highlighted choice rather than a locked answer. */
+.season-outcome-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.season-outcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.season-outcome:hover { border-color: rgba(var(--accent), 0.45); }
+
+.season-outcome.active {
+  border-color: rgb(var(--accent));
+  background: rgba(var(--accent), 0.1);
+}
+
+.season-outcome-label { font-size: 14px; font-weight: 600; }
+.season-outcome-hint { font-size: 12px; color: var(--text-secondary); }
+
 /* Backlog item count, sitting just after the quick-filter chips. Quiet
    enough to read as a label rather than another chip. */
 .chip-count {
