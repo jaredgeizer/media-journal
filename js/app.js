@@ -72,6 +72,12 @@ let items = [];
 // to fetch it fresh on every modal open.
 let libbyLibraryCode = null;
 let backlogSelectedTags = new Set();
+// Narrows the Journal to a single show's season entries, set by the "view
+// other seasons" link in the item modal. Deliberately separate from the
+// type/tag/rating filters: those are sticky preferences the user manages in
+// the filter dropdown, whereas this is a transient jump-to-a-thing that
+// clears from its own banner. Null when inactive.
+let journalShowFilter = null;
 let journalSelectedTags = new Set();
 let journalSelectedRatings = new Set();
 let backlogSelectedTypes = new Set();
@@ -503,6 +509,25 @@ function externalLinkHtml(item) {
   const label = EXTERNAL_LINK_LABEL[item.external_source];
   if (!label || !item.external_url) return '';
   return `<a href="${escapeHtml(item.external_url)}" target="_blank" rel="noopener noreferrer" class="external-link">${label}</a>`;
+}
+
+// Only worth offering when there's somewhere to go: at least one *other*
+// season of the same show already in the Journal. A show with a single
+// season logged would filter to the entry you're already looking at.
+function otherSeasonsLinkHtml(item) {
+  if (!isSeasonEntry(item)) return '';
+  const siblings = journalSeasonsForShow(item);
+  if (siblings.length < 2) return '';
+  return `<button type="button" class="external-link link-btn" id="otherSeasonsBtn">View other seasons</button>`;
+}
+
+// Same condition the full-width button used before this moved into the
+// links row: only offered when the item is actually missing something
+// re-matching could fill in.
+function updateInfoLinkHtml(item) {
+  const eligible =
+    (item.status === 'wishlist' || item.status === 'completed') && (!item.poster_url || needsReleaseDateFix(item));
+  return eligible ? `<button type="button" class="external-link link-btn" id="updateInfoBtn">Update info</button>` : '';
 }
 
 // Libby has no library-agnostic deep link — every search URL is scoped to
@@ -1035,6 +1060,26 @@ function seasonExternalId(container, seasonNumber) {
   return container.external_id ? `${container.external_id}-s${seasonNumber}` : null;
 }
 
+// Groups season entries belonging to the same show. Prefers the TMDb id
+// embedded in external_id ('tv-95396-s2' -> 'tv-95396') since titles can be
+// edited or duplicated; falls back to the title for manually-added shows
+// that never had one.
+function showKey(item) {
+  if (item.media_type !== 'tv') return null;
+  const match = /^(tv-\d+)(?:-s\d+)?$/.exec(item.external_id || '');
+  return match ? match[1] : `title:${(item.title || '').trim().toLowerCase()}`;
+}
+
+// Season entries for the same show that are actually in the Journal.
+// Sorted by season so "view other seasons" lands on a sensible order.
+function journalSeasonsForShow(item) {
+  const key = showKey(item);
+  if (!key) return [];
+  return items
+    .filter((i) => i.status === 'completed' && isSeasonEntry(i) && showKey(i) === key)
+    .sort((a, b) => a.season_number - b.season_number);
+}
+
 function findSeasonEntry(container, seasonNumber) {
   const externalId = seasonExternalId(container, seasonNumber);
   return items.find(
@@ -1503,7 +1548,9 @@ function renderJournal() {
     .filter((i) => i.status === 'completed' && typeMatches(i, journalSelectedTypes))
     .filter((i) => journalSelectedTags.size === 0 || (i.tags || []).some((t) => journalSelectedTags.has(t)))
     .filter((i) => journalSelectedRatings.size === 0 || journalSelectedRatings.has(i.rating))
+    .filter((i) => !journalShowFilter || showKey(i) === journalShowFilter.key)
     .sort(JOURNAL_SORTS[journalSortKey].cmp);
+  updateJournalShowNotice();
   const feed = el('journalFeed');
   const grouped = journalSortKey === 'completed_desc' || journalSortKey === 'completed_asc';
   feed.innerHTML = grouped ? journalGroupedFeedHtml(list) : list.map(journalEntryHtml).join('');
@@ -1513,6 +1560,35 @@ function renderJournal() {
   });
   renderCurrently();
   renderNotifications();
+}
+
+// The way out of the show filter is always on screen — the filter is set
+// from a modal that's since been closed, so without this there'd be no
+// visible explanation for a Journal that suddenly holds one show.
+function updateJournalShowNotice() {
+  const notice = el('journalShowNotice');
+  if (!notice) return;
+  if (!journalShowFilter) {
+    notice.classList.add('hidden');
+    notice.innerHTML = '';
+    return;
+  }
+  notice.innerHTML = `Showing <strong>${escapeHtml(journalShowFilter.title)}</strong> — <button type="button" class="link-btn" id="journalShowClearBtn">Clear</button>`;
+  notice.classList.remove('hidden');
+  el('journalShowClearBtn').addEventListener('click', () => {
+    journalShowFilter = null;
+    renderJournal();
+  });
+}
+
+function filterJournalToShow(item) {
+  const key = showKey(item);
+  if (!key) return;
+  journalShowFilter = { key, title: item.title };
+  closeModal();
+  switchTab('journal');
+  window.scrollTo(0, 0);
+  renderJournal();
 }
 
 // Notifications aren't a separate table — each is just a timestamp column
@@ -2954,13 +3030,8 @@ function openEditModal(item) {
       </div>
       <button class="modal-close" id="modalCloseBtn">✕</button>
     </div>
-    <div class="modal-links">${externalLinkHtml(current)}${imdbLinkHtml(current)}${libbyLinkHtml(current)}</div>
+    <div class="modal-links">${externalLinkHtml(current)}${imdbLinkHtml(current)}${otherSeasonsLinkHtml(current)}${libbyLinkHtml(current)}${updateInfoLinkHtml(current)}</div>
     ${descriptionHtml(current.description, 'editDescription')}
-    ${
-      (current.status === 'wishlist' || current.status === 'completed') && (!current.poster_url || needsReleaseDateFix(current))
-        ? `<button type="button" class="btn-secondary" id="updateInfoBtn" style="width:100%;margin-bottom:12px;">Update Info</button>`
-        : ''
-    }
     ${
       current.status === 'wishlist'
         ? `<div class="field" id="backlogTagField"><label>Tags</label>${tagChipsHtml('editBacklogTagChips', backlogTagsFor(current.media_type), current.tags || [])}</div>`
@@ -3002,6 +3073,11 @@ function openEditModal(item) {
   // Reads `current` at click time, not render time, so sharing after an
   // inline edit picks up the edited rating/notes.
   wireShareCardButton('shareCardBtn', () => current);
+
+  const otherSeasonsBtn = el('otherSeasonsBtn');
+  if (otherSeasonsBtn) {
+    otherSeasonsBtn.addEventListener('click', () => filterJournalToShow(current));
+  }
 
   const updateInfoBtn = el('updateInfoBtn');
   if (updateInfoBtn) {

@@ -1627,7 +1627,15 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
+  margin-bottom: 16px;
 }
+
+/* Spacing belongs to the row, not each link. .external-link carries its own
+   bottom margin for the modals that render a single link bare (review, add),
+   but inside this row that margin compounds with the flex gap and spaces the
+   lines unevenly once the links wrap onto a second row. */
+.modal-links .external-link { margin-bottom: 0; }
+.modal-links:empty { margin-bottom: 0; }
 
 .external-link {
   display: inline-flex;
