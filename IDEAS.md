@@ -25,7 +25,8 @@ Discussed conceptually (see README/session history for the fuller breakdown): pr
 
   **Decided so far:**
   - **Seasons are the only things that reach the Journal.** The show is a container living in Currently Watching or Backlog; it never carries a rating of its own.
-  - **The user is asked what happens to the show** each time a season is finished, with three outcomes: keep it in Currently Watching (the next season is already out), move it to Backlog (a next season exists but hasn't aired), or mark the series finished (there is no next season). Worth pre-selecting the likely answer from TMDb's season list and series status rather than asking cold every time.
+  - **The user is asked what happens to the show** each time a season is finished, with three outcomes: keep it in Currently Watching (the next season is already out), move it to Backlog (a next season exists but hasn't aired), or mark the series finished (there is no next season).
+  - **The likely outcome is pre-selected, but all three stay one tap away.** TMDb's season list and series status usually make the right answer obvious, so the prompt should arrive with it already chosen — a confirmation rather than a cold question. It must never auto-apply or hide the alternatives: TMDb is regularly stale on unannounced renewals and wrong about which series have genuinely ended, and the user knows things it doesn't (dropping a show mid-run, say). The pre-selection is a shortcut for the common case, not a decision made on the user's behalf.
   - **Existing completed shows stay as they are** — legacy show-level entries. There's no way to know which seasons an old entry actually covered, so nothing gets migrated or invented.
   - **Seasons become the unit everywhere**, not just the Account page: the pie, the activity calendar, the total, and yearly goals all count completed seasons, so no two screens disagree about what a "completed TV thing" is.
 
