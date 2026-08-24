@@ -1662,7 +1662,11 @@ button:disabled { opacity: 0.5; cursor: default; transform: none !important; }
   line-height: 1.5;
   margin: 0 0 4px;
   display: -webkit-box;
-  -webkit-line-clamp: 6;
+  /* Kept short so a long synopsis doesn't push the review and actions
+     below the fold. wireDescriptionToggle() reveals "View more" by
+     comparing scrollHeight to clientHeight rather than counting lines, so
+     changing this number needs no matching JS change. */
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
