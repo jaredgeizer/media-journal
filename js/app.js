@@ -724,6 +724,30 @@ function hasProgress(item) {
   return false;
 }
 
+// A local calendar day as 'YYYY-MM-DD'. Built from local getters rather
+// than toISOString().slice(0, 10), which would be UTC and hand anyone west
+// of it tomorrow's date all evening.
+function localDayString(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+// Adds today to an item's progress_days and returns the patch to persist.
+// One entry per day is all the Account calendar can draw, so a day already
+// recorded passes the patch through untouched.
+//
+// Only *user-initiated* progress should come through here. The automated
+// writer — checkForNewTvSeasons(), which bumps progress_season when TMDb
+// reports a new season — deliberately calls store.updateItem() directly:
+// the app noticing a season dropped isn't an evening spent watching, and
+// shouldn't put a dot on the calendar.
+function withProgressDay(item, patch) {
+  const today = localDayString();
+  const days = item.progress_days || [];
+  if (days.includes(today)) return patch;
+  return { ...patch, progress_days: [...days, today] };
+}
+
 // Season/episode counts for TMDb-sourced TV shows, fetched on demand and
 // cached in memory for the session (avoids refetching on every render).
 const tvSeasonInfoCache = new Map();
@@ -1447,10 +1471,7 @@ function renderCurrently() {
         return;
       }
 
-      const updated = await store.updateItem(id, { progress_episode: episode + 1 });
-      const idx = items.findIndex((i) => i.id === id);
-      items[idx] = updated;
-      renderCurrently();
+      await persistProgress(id, { progress_episode: episode + 1 });
     });
   });
 
@@ -1485,10 +1506,7 @@ function renderCurrently() {
         await markItemCompleted(items.find((i) => i.id === id), { progress_percent: 100 });
         return;
       }
-      const updated = await store.updateItem(id, { progress_percent: v });
-      const idx = items.findIndex((i) => i.id === id);
-      items[idx] = updated;
-      renderCurrently();
+      await persistProgress(id, { progress_percent: v });
     });
   });
 
@@ -1507,12 +1525,22 @@ function renderCurrently() {
         await markItemCompleted(items.find((i) => i.id === id), { progress_percent: 100 });
         return;
       }
-      const updated = await store.updateItem(id, { progress_percent: v });
-      const idx = items.findIndex((i) => i.id === id);
-      items[idx] = updated;
-      renderCurrently();
+      await persistProgress(id, { progress_percent: v });
     });
   });
+}
+
+// A user-initiated progress change from the Currently card: stamps today
+// onto progress_days, writes, and re-renders. The Account calendar picks
+// the new day up the next time it renders.
+async function persistProgress(id, patch) {
+  const current = items.find((i) => i.id === id);
+  if (!current) return null;
+  const updated = await store.updateItem(id, withProgressDay(current, patch));
+  const idx = items.findIndex((i) => i.id === id);
+  items[idx] = updated;
+  renderCurrently();
+  return updated;
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -2286,26 +2314,46 @@ let accountCalendarMonth = { year: new Date().getFullYear(), month: new Date().g
 // declaration above journalDateGroupKey().
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-// Media types present on each day of the given month, as
-// Map<dayOfMonth, Set<mediaType>>. A Set is what gives "one dot per
-// category" for free — three movies finished on the same day collapse to
-// a single movie-colored dot.
+// What happened on each day of the given month, as
+// Map<dayOfMonth, { done: Set<mediaType>, progress: Set<mediaType> }>.
+// Sets are what give "one dot per category" for free — three movies
+// finished on the same day collapse to a single movie-colored dot.
 //
-// Local getters throughout (getFullYear/getMonth/getDate), matching
-// accountStatsForYear() and the local-midnight convention explained above
-// dateInputToIso(). Reading these timestamps as UTC instead would slide
-// items onto the wrong day for anyone west of UTC.
-function completionsByDayForMonth(year, month) {
+// A type that appears in `done` is removed from `progress` for that day:
+// finishing a book you also read that morning should draw one filled dot,
+// not a filled one and a hollow one suggesting two different things
+// happened.
+//
+// Completions use local getters throughout
+// (getFullYear/getMonth/getDate), matching accountStatsForYear() and the
+// local-midnight convention explained above dateInputToIso(); reading
+// those timestamps as UTC instead would slide items onto the wrong day
+// for anyone west of it. Progress days need none of that — they're stored
+// as the local day they happened on (see progress_days in schema.sql).
+function activityByDayForMonth(year, month) {
   const byDay = new Map();
+  const dayEntry = (day) => {
+    if (!byDay.has(day)) byDay.set(day, { done: new Set(), progress: new Set() });
+    return byDay.get(day);
+  };
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+
   items.forEach((i) => {
-    if (i.status !== 'completed' || !i.date_completed) return;
-    const d = new Date(i.date_completed);
-    if (Number.isNaN(d.getTime())) return;
-    if (d.getFullYear() !== year || d.getMonth() !== month) return;
-    const day = d.getDate();
-    if (!byDay.has(day)) byDay.set(day, new Set());
-    byDay.get(day).add(i.media_type);
+    if (i.status === 'completed' && i.date_completed) {
+      const d = new Date(i.date_completed);
+      if (!Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month) {
+        dayEntry(d.getDate()).done.add(i.media_type);
+      }
+    }
+    (i.progress_days || []).forEach((stamp) => {
+      if (typeof stamp !== 'string' || !stamp.startsWith(monthPrefix)) return;
+      const day = parseInt(stamp.slice(monthPrefix.length), 10);
+      if (!day) return;
+      dayEntry(day).progress.add(i.media_type);
+    });
   });
+
+  byDay.forEach(({ done, progress }) => done.forEach((t) => progress.delete(t)));
   return byDay;
 }
 
@@ -2338,20 +2386,43 @@ function clampCalendarMonth(target) {
 // day's dots keep the same left-to-right sequence across re-renders.
 const TYPE_DOT_ORDER = Object.keys(TYPE_COLOR);
 
-function dayDotsHtml(types) {
-  return TYPE_DOT_ORDER.filter((t) => types.has(t))
-    .map(
-      (t) =>
-        `<span class="account-cal-dot" style="background:${TYPE_COLOR[t]}" title="${escapeHtml(
-          TYPE_LABEL[t] || t
-        )}"></span>`
-    )
-    .join('');
+function orderedTypes(types) {
+  return TYPE_DOT_ORDER.filter((t) => types.has(t));
+}
+
+// Filled dots first, then outlines — "what I finished, then what I'm
+// partway through". The color rides on a --dot-color custom property
+// rather than `background` directly so one CSS rule can paint a fill and
+// another a ring from the same value; TYPE_COLOR's entries are themselves
+// var(--type-*), which nests fine.
+function dayDotsHtml({ done, progress }) {
+  const dot = (t, variant) =>
+    `<span class="account-cal-dot${variant}" style="--dot-color:${TYPE_COLOR[t]}" title="${escapeHtml(
+      `${TYPE_LABEL[t] || t}${variant ? ' (in progress)' : ''}`
+    )}"></span>`;
+  return [
+    ...orderedTypes(done).map((t) => dot(t, '')),
+    ...orderedTypes(progress).map((t) => dot(t, ' account-cal-dot--progress')),
+  ].join('');
+}
+
+// Fill is the only thing separating "finished" from "in progress" on
+// screen, and it carries none of that to a screen reader — so the label
+// has to say it in words.
+function dayLabel(month, day, activity) {
+  const parts = [];
+  if (activity && activity.done.size) {
+    parts.push(`finished ${joinWithAnd(orderedTypes(activity.done).map((t) => TYPE_LABEL[t] || t))}`);
+  }
+  if (activity && activity.progress.size) {
+    parts.push(`progress on ${joinWithAnd(orderedTypes(activity.progress).map((t) => TYPE_LABEL[t] || t))}`);
+  }
+  return `${MONTH_NAMES[month]} ${day}: ${parts.length ? parts.join('; ') : 'nothing logged'}`;
 }
 
 function accountCalendarHtml() {
   const { year, month } = accountCalendarMonth;
-  const byDay = completionsByDayForMonth(year, month);
+  const byDay = activityByDayForMonth(year, month);
   const { min, max } = accountCalendarBounds();
   const atMin = monthIndexOf(accountCalendarMonth) <= monthIndexOf(min);
   const atMax = monthIndexOf(accountCalendarMonth) >= monthIndexOf(max);
@@ -2366,17 +2437,13 @@ function accountCalendarHtml() {
   const blanks = Array.from({ length: firstWeekday }, () => `<div class="account-cal-cell account-cal-cell--blank"></div>`);
   const days = Array.from({ length: daysInMonth }, (_, idx) => {
     const day = idx + 1;
-    const types = byDay.get(day);
+    const activity = byDay.get(day);
     const isToday = isCurrentMonth && today.getDate() === day;
-    const label = types
-      ? `${MONTH_NAMES[month]} ${day}: ${TYPE_DOT_ORDER.filter((t) => types.has(t))
-          .map((t) => TYPE_LABEL[t] || t)
-          .join(', ')}`
-      : `${MONTH_NAMES[month]} ${day}: nothing logged`;
+    const label = dayLabel(month, day, activity);
     return `
       <div class="account-cal-cell${isToday ? ' account-cal-cell--today' : ''}" aria-label="${escapeHtml(label)}">
         <span class="account-cal-daynum">${day}</span>
-        <span class="account-cal-dots">${types ? dayDotsHtml(types) : ''}</span>
+        <span class="account-cal-dots">${activity ? dayDotsHtml(activity) : ''}</span>
       </div>`;
   });
 
@@ -2392,6 +2459,10 @@ function accountCalendarHtml() {
       </div>
       <div class="account-cal-grid">
         ${blanks.join('')}${days.join('')}
+      </div>
+      <div class="account-cal-key">
+        <span class="account-cal-key-item"><span class="account-cal-dot"></span>Finished</span>
+        <span class="account-cal-key-item"><span class="account-cal-dot account-cal-dot--progress"></span>In progress</span>
       </div>
     </div>`;
 }
@@ -3115,6 +3186,11 @@ function openEditModal(item) {
     return updated;
   }
 
+  // persist() for the progress controls specifically: the same write, with
+  // today stamped onto progress_days. Editing a rating or a tag is not
+  // progress, so those keep using persist() directly.
+  const persistProgressEdit = (patch) => persist(withProgressDay(current, patch));
+
   if (current.status === 'in_progress' && PERCENT_PROGRESS_TYPES.includes(current.media_type)) {
     const slider = el('editProgressPercent');
     const number = el('editProgressPercentNumber');
@@ -3128,7 +3204,7 @@ function openEditModal(item) {
       // Hitting 100% means done — mark it completed and go straight to the
       // review modal instead of just sitting at a maxed-out progress bar.
       if (v === 100) markItemCompleted(current, { progress_percent: 100 });
-      else persist({ progress_percent: v });
+      else persistProgressEdit({ progress_percent: v });
     });
 
     number.addEventListener('input', (e) => {
@@ -3139,15 +3215,15 @@ function openEditModal(item) {
       number.value = v;
       slider.value = v;
       if (v === 100) markItemCompleted(current, { progress_percent: 100 });
-      else persist({ progress_percent: v });
+      else persistProgressEdit({ progress_percent: v });
     });
   }
   if (current.status === 'in_progress' && EPISODE_PROGRESS_TYPES.includes(current.media_type)) {
     el('editProgressSeason').addEventListener('change', (e) => {
-      persist({ progress_season: parseInt(e.target.value, 10) || 1 });
+      persistProgressEdit({ progress_season: parseInt(e.target.value, 10) || 1 });
     });
     el('editProgressEpisode').addEventListener('change', (e) => {
-      persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
+      persistProgressEdit({ progress_episode: parseInt(e.target.value, 10) || 1 });
     });
 
     getSeasonInfoCached(current).then((info) => {
@@ -3186,7 +3262,7 @@ function openEditModal(item) {
         if (!episodeSelect) episodeSelect = turnIntoSelect(episodeInputEl);
         setSelectOptions(episodeSelect, epCount, currentEpisode);
         episodeSelect.onchange = (e) => {
-          persist({ progress_episode: parseInt(e.target.value, 10) || 1 });
+          persistProgressEdit({ progress_episode: parseInt(e.target.value, 10) || 1 });
           updateEpisodeName();
         };
       };
@@ -3194,7 +3270,7 @@ function openEditModal(item) {
       updateEpisodeName();
 
       seasonSelect.addEventListener('change', (e) => {
-        persist({ progress_season: parseInt(e.target.value, 10) || 1 });
+        persistProgressEdit({ progress_season: parseInt(e.target.value, 10) || 1 });
         updateEpisodeOptions();
         updateEpisodeName();
       });
@@ -3211,7 +3287,7 @@ function openEditModal(item) {
       const patch = PERCENT_PROGRESS_TYPES.includes(current.media_type)
         ? { status: 'in_progress', progress_percent: 0 }
         : { status: 'in_progress', progress_season: current.progress_season || 1, progress_episode: current.progress_episode || 1 };
-      await persist(patch);
+      await persistProgressEdit(patch);
       closeModal();
       switchTab('journal');
     });

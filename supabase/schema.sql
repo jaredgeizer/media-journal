@@ -53,6 +53,25 @@ create table if not exists public.items (
   progress_season   smallint,                                            -- TV shows
   progress_episode  smallint,                                            -- TV shows
 
+  -- Days the user moved this item along, as local calendar dates
+  -- ('YYYY-MM-DD'), at most one entry per day — the Account calendar draws
+  -- an outline dot per media type per day from these, so a finer
+  -- granularity would be recorded and then thrown away.
+  --
+  -- Text, and a *day* rather than a timestamptz, on purpose: the day is
+  -- decided once, on the device that logged it, using local getters (the
+  -- convention above dateInputToIso() in js/app.js). Nothing re-derives it
+  -- at render time, so no viewer's timezone can slide a dot onto the wrong
+  -- square. That does mean a progress day is fixed where date_completed
+  -- renders in the viewer's zone — deliberate, and the more correct of the
+  -- two.
+  --
+  -- Only user-initiated progress lands here. checkForNewTvSeasons() bumps
+  -- progress_season on its own when TMDb reports a new season; the app
+  -- noticing that isn't an evening spent watching, so it writes directly
+  -- rather than through persistProgress()/withProgressDay().
+  progress_days     text[] not null default '{}',
+
   -- release date and notification-log bookkeeping: each *_at column is
   -- set once, the first time that notification fires for this item, so
   -- it never repeats. notified_release_soon_days freezes how many days

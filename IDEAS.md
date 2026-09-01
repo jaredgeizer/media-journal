@@ -59,7 +59,12 @@ Discussed conceptually (see README/session history for the fuller breakdown): pr
   - `progress_season` / `progress_episode` stay the live pointer on the container; a season entry is what gets *emitted* when the pointer rolls over.
   - **Season entries need distinct `external_id`s** (something like `tv-1399-s2`), or `matchesLibraryItem()` in `js/importexport.js` will treat every season of a show as the same item and dedupe them into one.
   - **Season numbers aren't always TMDb's raw seasons.** `getTVSeasonInfo()` prefers a named episode *group* for anime where that's a better breakdown, so season entries must record which numbering they came from or they'll disagree with the show as TMDb data shifts.
-  - Counting changes land in `accountStatsForYear()`, `completedCountForYearTypes()`, the activity calendar's `completionsByDayForMonth()`, and the pie — all of which currently filter on `status === 'completed'` per item.
+  - Counting changes land in `accountStatsForYear()`, `completedCountForYearTypes()`, the activity calendar's `activityByDayForMonth()`, and the pie — all of which currently filter on `status === 'completed'` per item.
+
+- ~~**Show progress days on the activity calendar.**~~ **Done.** Days you moved a book, show or game along now draw a hollow dot in the type's colour beside the filled dots for things finished, with a key under the grid. A type finished on a day suppresses its own outline, so one event never draws two dots.
+  - Needed new data: nothing recorded *when* progress happened — `progress_percent`/`progress_season`/`progress_episode` hold only the current value, and `updated_at` is overwritten by any edit at all. Added `progress_days text[]`, one local `'YYYY-MM-DD'` per day, written through `withProgressDay()` in `js/app.js`.
+  - Only user-initiated progress counts. `checkForNewTvSeasons()` writes `progress_season` directly on purpose — the app noticing a season dropped isn't an evening spent watching.
+  - **No history before it shipped**, and none can be reconstructed. `supabase/one-off/add-progress-days.sql` has an optional, clearly-labelled seed for currently in-progress items based on `updated_at`, which is a guess rather than a recovery.
 
 ## Search
 
@@ -67,5 +72,10 @@ Discussed conceptually (see README/session history for the fuller breakdown): pr
 
 ## Import / data sources
 
+- **Obsidian vault export** — scoped in detail, then paused. A `.zip` from the Import/Export modal that unzips into a droppable Obsidian vault: one markdown note per item (folder per type, full YAML frontmatter, poster embed, your review above the third-party synopsis), an index note, a README explaining provenance, and the raw JSON backup alongside. Reuses the JSZip already loaded for the Letterboxd import.
+  - **The part that matters is the restore, not the export.** Pair it with a JSON importer ("Restore from a Media Journal backup") and widen `exportAsJson()` to carry goals and the Libby code, and Supabase stops being a single point of failure. Without that, it's an archive you can read but not reload.
+  - Gotchas found while scoping: use a `journal_tags` frontmatter key, not `tags` — Obsidian mangles tags containing emoji and spaces, and all of `BACKLOG_TAGS` do. Keep reviews and descriptions in the note body so no multi-line YAML escaping can eat them. Sanitize filenames for `/ \ : * ? " < > |` and `# ^ [ ]`, and de-duplicate collisions.
+  - Posters degrade rather than fail: fetching image bytes needs cross-origin `fetch()`, and TMDb's image CORS is inconsistent (the same thing that forced the share card's fallback). Embed what succeeds, keep the remote URL for what doesn't, and report the count honestly.
+  - **Context on why this was scoped:** the worry was the app breaking because of "the number of APIs". The five APIs are capture-time only — search, posters, episode counts — and the library renders fine without any of them. The actually load-bearing dependencies are Supabase (this export's job), GitHub Pages (static files, re-hostable anywhere), and the three jsDelivr `<script>` tags in `index.html`, which are the one that would stop the app booting. **Vendoring those three into `js/vendor/` is the other half of the durability story and is a much smaller job.**
 - **Serializd import**, if/when they ship a reliable free export (none exists today).
 - **Anime-specific season data source** (e.g. AniList or Jikan/MyAnimeList) as a fallback for anime titles where TMDb's own season data is incomplete or misnumbered, beyond what the existing TMDb-episode-groups fix already covers.
