@@ -16,6 +16,13 @@
 // if that fails, render a typographic card built around the media type's
 // own color instead. The fallback is designed to look like a deliberate
 // second style rather than a broken first one.
+//
+// THE BACKDROP
+// Both layouts sit on the same generated background: a colour pulled out of
+// the poster (or the media type's, when there's no poster to read), with
+// contour lines drawn over it from a random height field seeded by the
+// item's id. Same review, same terrain; different reviews, different
+// terrain.
 
 const CARD_W = 1080;
 const CARD_H = 1920;
@@ -46,16 +53,107 @@ function typeColor(mediaType) {
   return raw || '#898781';
 }
 
-// Mixes a hex color toward black, for backgrounds that need to sit behind
-// white text without competing with it.
-function darken(hex, amount) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return hex;
+function parseHex(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return null;
   const n = parseInt(m[1], 16);
-  const r = Math.round(((n >> 16) & 255) * (1 - amount));
-  const g = Math.round(((n >> 8) & 255) * (1 - amount));
-  const b = Math.round((n & 255) * (1 - amount));
-  return `rgb(${r}, ${g}, ${b})`;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function rgbToHsl({ r, g, b }) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+  else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+  else h = ((rn - gn) / d + 4) / 6;
+  return { h, s, l };
+}
+
+// h is 0..1 to match rgbToHsl; everything else here thinks in fractions too.
+function hsl(h, s, l, a = 1) {
+  const deg = ((h % 1) + 1) % 1;
+  return `hsla(${(deg * 360).toFixed(1)}, ${(s * 100).toFixed(1)}%, ${(l * 100).toFixed(1)}%, ${a})`;
+}
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// The card's colour, pulled from the poster itself.
+//
+// Not the most *common* colour — that's almost always the near-black or
+// near-white the artwork sits on, which would make every card look the
+// same. Instead: throw away pixels too dark, too pale or too grey to say
+// anything, bucket what's left by hue, and take the heaviest bucket
+// weighted by how vivid and how mid-toned each pixel is. That's the colour
+// a person would point at if you asked what colour the poster is.
+//
+// Returns {h, s, l} or null when the poster has nothing to offer (a
+// black-and-white cover, say), leaving the caller to fall back to the
+// media type's own colour.
+function posterColor(img) {
+  const W = 48;
+  const H = 72;
+  const sample = document.createElement('canvas');
+  sample.width = W;
+  sample.height = H;
+  const sctx = sample.getContext('2d', { willReadFrequently: true });
+  sctx.drawImage(img, 0, 0, W, H);
+
+  let data;
+  try {
+    data = sctx.getImageData(0, 0, W, H).data;
+  } catch (err) {
+    // loadCorsImage() should have ruled this out — the image only resolves
+    // when the host allowed CORS — but a tainted canvas here would throw
+    // SecurityError and take the whole card down over a background colour.
+    return null;
+  }
+
+  const BUCKETS = 24;
+  const weights = new Float64Array(BUCKETS);
+  const sums = Array.from({ length: BUCKETS }, () => ({ s: 0, l: 0, w: 0 }));
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+    const { h, s, l } = rgbToHsl({ r: data[i], g: data[i + 1], b: data[i + 2] });
+    if (l < 0.12 || l > 0.92 || s < 0.15) continue;
+    // Vivid and mid-toned pixels speak loudest.
+    const weight = s * (1 - Math.abs(l - 0.5) * 1.4);
+    if (weight <= 0) continue;
+    const bucket = Math.min(BUCKETS - 1, Math.floor(h * BUCKETS));
+    weights[bucket] += weight;
+    sums[bucket].s += s * weight;
+    sums[bucket].l += l * weight;
+    sums[bucket].w += weight;
+  }
+
+  let best = -1;
+  for (let i = 0; i < BUCKETS; i += 1) {
+    if (weights[i] > (best === -1 ? 0 : weights[best])) best = i;
+  }
+  if (best === -1) return null;
+
+  return {
+    h: (best + 0.5) / BUCKETS,
+    s: sums[best].s / sums[best].w,
+    l: sums[best].l / sums[best].w,
+  };
+}
+
+// Turns whatever colour we ended up with into one that can sit behind white
+// text. Hue is kept exactly; saturation is floored so it doesn't wash out
+// to grey and capped so it doesn't vibrate; lightness is set outright
+// rather than scaled, so a black poster and a neon one both land somewhere
+// legible instead of one going pure black and the other staying bright.
+function backdrop(base) {
+  return { h: base.h, s: clamp(base.s, 0.3, 0.62) };
 }
 
 // Splits a single word that is itself wider than the line into chunks that
@@ -118,6 +216,191 @@ function drawLines(ctx, lines, x, y, lineHeight) {
   return y + lines.length * lineHeight;
 }
 
+// ---------------------------------------------------------------------------
+// The topographic backdrop
+//
+// Contour lines over a smooth random field, so every card gets its own
+// terrain. The seed comes from the item's id, which means the pattern is
+// different for every review but the same one twice for the same review —
+// re-sharing a card doesn't quietly produce different art. Swap the seed
+// for Math.random() if it should re-roll on every share instead.
+// ---------------------------------------------------------------------------
+
+// mulberry32: small, fast, and good enough for decoration.
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(str) {
+  let h = 2166136261;
+  for (let i = 0; i < String(str).length; i += 1) {
+    h ^= String(str).charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+// A height field: a few plane waves for the ridged, banded structure, plus
+// a handful of radial bumps and hollows. The bumps are what matter — pure
+// waves give stripes, and it's the closed loops around a peak or a basin
+// that make the eye read "map" rather than "pattern".
+function makeHeightField(rng) {
+  const waves = [];
+  const waveCount = 4 + Math.floor(rng() * 3);
+  for (let i = 0; i < waveCount; i += 1) {
+    const angle = rng() * Math.PI * 2;
+    const freq = 0.0016 + rng() * 0.0042;
+    waves.push({
+      ax: Math.cos(angle) * freq,
+      ay: Math.sin(angle) * freq,
+      phase: rng() * Math.PI * 2,
+      amp: 0.5 + rng() * 0.7,
+    });
+  }
+
+  const bumps = [];
+  const bumpCount = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < bumpCount; i += 1) {
+    bumps.push({
+      x: rng() * CARD_W,
+      y: rng() * CARD_H,
+      r: 240 + rng() * 620,
+      amp: (rng() < 0.5 ? -1 : 1) * (1.2 + rng() * 1.8),
+    });
+  }
+
+  return (x, y) => {
+    let v = 0;
+    for (const w of waves) v += w.amp * Math.sin(x * w.ax + y * w.ay + w.phase);
+    for (const b of bumps) {
+      const dx = (x - b.x) / b.r;
+      const dy = (y - b.y) / b.r;
+      v += b.amp * Math.exp(-(dx * dx + dy * dy));
+    }
+    return v;
+  };
+}
+
+// Marching squares. Each cell contributes at most two line segments, with
+// the crossing points linearly interpolated along the edges — that
+// interpolation is the difference between smooth contours and visible
+// stair-stepping at this grid size.
+function contourSegments(grid, cols, rows, step, level, out) {
+  const at = (i, j) => grid[j * cols + i];
+  for (let j = 0; j < rows - 1; j += 1) {
+    for (let i = 0; i < cols - 1; i += 1) {
+      const v0 = at(i, j);
+      const v1 = at(i + 1, j);
+      const v2 = at(i + 1, j + 1);
+      const v3 = at(i, j + 1);
+      let idx = 0;
+      if (v0 > level) idx |= 8;
+      if (v1 > level) idx |= 4;
+      if (v2 > level) idx |= 2;
+      if (v3 > level) idx |= 1;
+      if (idx === 0 || idx === 15) continue;
+
+      const x = i * step;
+      const y = j * step;
+      const top = () => [x + step * ((level - v0) / (v1 - v0)), y];
+      const right = () => [x + step, y + step * ((level - v1) / (v2 - v1))];
+      const bottom = () => [x + step * ((level - v3) / (v2 - v3)), y + step];
+      const left = () => [x, y + step * ((level - v0) / (v3 - v0))];
+
+      switch (idx) {
+        case 1: case 14: out.push([left(), bottom()]); break;
+        case 2: case 13: out.push([bottom(), right()]); break;
+        case 3: case 12: out.push([left(), right()]); break;
+        case 4: case 11: out.push([top(), right()]); break;
+        case 6: case 9: out.push([top(), bottom()]); break;
+        case 7: case 8: out.push([left(), top()]); break;
+        // Saddles: two crossings in one cell. Either pairing is defensible
+        // and neither is visibly wrong at this scale.
+        case 5: out.push([left(), top()], [bottom(), right()]); break;
+        case 10: out.push([top(), right()], [left(), bottom()]); break;
+        default: break;
+      }
+    }
+  }
+}
+
+function drawTopography(ctx, rng, tint) {
+  const step = 12;
+  const cols = Math.ceil(CARD_W / step) + 1;
+  const rows = Math.ceil(CARD_H / step) + 1;
+  const field = makeHeightField(rng);
+
+  const grid = new Float32Array(cols * rows);
+  let min = Infinity;
+  let max = -Infinity;
+  for (let j = 0; j < rows; j += 1) {
+    for (let i = 0; i < cols; i += 1) {
+      const v = field(i * step, j * step);
+      grid[j * cols + i] = v;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (max - min < 1e-6) return;
+
+  const levelCount = 26 + Math.floor(rng() * 12);
+  // Inset from the extremes: a contour drawn at the exact minimum or
+  // maximum hugs a single point and reads as a speck, not a line.
+  const lo = min + (max - min) * 0.06;
+  const hi = max - (max - min) * 0.06;
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  for (let n = 0; n < levelCount; n += 1) {
+    const level = lo + ((hi - lo) * n) / (levelCount - 1);
+    const segments = [];
+    contourSegments(grid, cols, rows, step, level, segments);
+    if (!segments.length) continue;
+
+    // Every fifth line heavier, the way an index contour is on a real
+    // topographic map — it gives the field a sense of depth that evenly
+    // weighted lines don't.
+    const index = n % 5 === 0;
+    ctx.lineWidth = index ? 3 : 1.6;
+    ctx.strokeStyle = hsl(tint.h, tint.s * 0.85, 0.78, index ? 0.17 : 0.09);
+
+    ctx.beginPath();
+    for (const [a, b] of segments) {
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// Background, then contours, then a vertical wash that pushes the lines
+// back where the text sits so nothing has to compete with them.
+function drawBackdrop(ctx, tint, seed) {
+  const base = ctx.createLinearGradient(0, 0, 0, CARD_H);
+  base.addColorStop(0, hsl(tint.h, tint.s, 0.17));
+  base.addColorStop(1, hsl(tint.h, tint.s * 0.9, 0.06));
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+  drawTopography(ctx, makeRng(seed), tint);
+
+  const wash = ctx.createLinearGradient(0, CARD_H * 0.55, 0, CARD_H);
+  wash.addColorStop(0, hsl(tint.h, tint.s, 0.06, 0));
+  wash.addColorStop(1, hsl(tint.h, tint.s, 0.04, 0.42));
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+}
+
 function roundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -170,34 +453,36 @@ function subtitleText(item) {
     .join(' · ');
 }
 
-// Shared bottom half: title, subtitle, stars, notes, wordmark. Returns
-// nothing; both layouts position their artwork above this and hand in the
-// y coordinate to start from.
+// Shared bottom half: title, subtitle, stars, notes, wordmark — all centred
+// on the card's axis, under the artwork. Returns nothing; both layouts
+// position their artwork above this and hand in the y coordinate to start
+// from.
 function drawDetails(ctx, item, top) {
   const pad = 96;
   const maxWidth = CARD_W - pad * 2;
+  const mid = CARD_W / 2;
   let y = top;
 
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
 
   ctx.fillStyle = INK;
   ctx.font = `700 68px ${FONT_STACK}`;
-  y = drawLines(ctx, wrapLines(ctx, cardTitle(item), maxWidth, 3), pad, y, 82);
+  y = drawLines(ctx, wrapLines(ctx, cardTitle(item), maxWidth, 3), mid, y, 82);
 
   const subtitle = subtitleText(item);
   if (subtitle) {
     y += 14;
     ctx.fillStyle = INK_DIM;
     ctx.font = `500 36px ${FONT_STACK}`;
-    y = drawLines(ctx, wrapLines(ctx, subtitle, maxWidth, 2), pad, y, 46);
+    y = drawLines(ctx, wrapLines(ctx, subtitle, maxWidth, 2), mid, y, 46);
   }
 
   if (item.rating) {
     y += 26;
     ctx.fillStyle = '#ffb020';
     ctx.font = `400 58px ${FONT_STACK}`;
-    ctx.fillText(starsText(item.rating), pad, y);
+    ctx.fillText(starsText(item.rating), mid, y);
     y += 76;
   }
 
@@ -208,20 +493,20 @@ function drawDetails(ctx, item, top) {
     // Line budget is whatever vertical room is left above the wordmark.
     const available = CARD_H - 150 - y;
     const maxLines = Math.max(0, Math.floor(available / 54));
-    if (maxLines > 0) drawLines(ctx, wrapLines(ctx, item.notes, maxWidth, maxLines), pad, y, 54);
+    if (maxLines > 0) drawLines(ctx, wrapLines(ctx, item.notes, maxWidth, maxLines), mid, y, 54);
   }
 
   ctx.fillStyle = INK_FAINT;
   ctx.font = `600 32px ${FONT_STACK}`;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Media Journal', pad, CARD_H - 88);
+  ctx.fillText('Media Journal', mid, CARD_H - 88);
 }
 
 function drawWithPoster(ctx, item, img) {
-  const accent = typeColor(item.media_type);
-
-  ctx.fillStyle = darken(accent, 0.82);
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  // The poster's own colour where it has one to give; the media type's
+  // otherwise, which is what a black-and-white cover falls back to.
+  const pulled = posterColor(img) || rgbToHsl(parseHex(typeColor(item.media_type)) || { r: 137, g: 135, b: 129 });
+  drawBackdrop(ctx, backdrop(pulled), hashString(item.id || item.title || 'card'));
 
   // Poster sized to a 2:3 box, cover-cropped so odd aspect ratios (book
   // and album art especially) fill it without distortion.
@@ -250,13 +535,8 @@ function drawWithPoster(ctx, item, img) {
 // its emoji standing in for the artwork. Same typography below, so the two
 // layouts read as siblings.
 function drawWithoutPoster(ctx, item) {
-  const accent = typeColor(item.media_type);
-
-  const gradient = ctx.createLinearGradient(0, 0, 0, CARD_H);
-  gradient.addColorStop(0, darken(accent, 0.35));
-  gradient.addColorStop(1, darken(accent, 0.86));
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  const accent = rgbToHsl(parseHex(typeColor(item.media_type)) || { r: 137, g: 135, b: 129 });
+  drawBackdrop(ctx, backdrop(accent), hashString(item.id || item.title || 'card'));
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
