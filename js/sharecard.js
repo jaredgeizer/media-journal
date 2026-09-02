@@ -12,10 +12,13 @@
 // an Access-Control-Allow-Origin header, and TMDb's are documented as
 // inconsistent (present on some responses and not others for the same URL).
 //
-// So the poster is treated as best-effort: try to load it CORS-safely, and
-// if that fails, render a typographic card built around the media type's
-// own color instead. The fallback is designed to look like a deliberate
-// second style rather than a broken first one.
+// So the poster is treated as best-effort, in three steps: load it
+// CORS-safely from the host; failing that, through the poster-proxy Edge
+// Function, which re-serves the bytes with the header attached; failing
+// that, render a typographic card built around the media type's own color.
+// The fallback is designed to look like a deliberate second style rather
+// than a broken first one — but it should now be rare, where before it was
+// guaranteed for every book (books.google.com never sends the header).
 //
 // THE BACKDROP
 // Both layouts sit on the same generated background: a colour pulled out of
@@ -432,6 +435,37 @@ function loadCorsImage(url) {
   });
 }
 
+// The Edge Function that re-serves a poster with a CORS header
+// (supabase/functions/poster-proxy). Null when the app isn't connected to a
+// Supabase project — Demo Mode has no function to call.
+//
+// The anon key rides along as a query parameter because an <img> can't send
+// headers. It's the same public key already sitting in js/config.js, and it
+// grants nothing on its own; the row-level policies are what protect data.
+function proxiedPosterUrl(url) {
+  const cfg = window.MEDIA_JOURNAL_CONFIG || {};
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey || !url) return null;
+  const params = new URLSearchParams({ url, apikey: cfg.supabaseAnonKey });
+  return `${cfg.supabaseUrl}/functions/v1/poster-proxy?${params}`;
+}
+
+// Direct first, proxy second, give up third.
+//
+// Direct costs nothing when it works — image.tmdb.org usually does — and
+// keeps the card independent of the Edge Function. The proxy is what
+// rescues the hosts that refuse CORS outright: books.google.com never sends
+// the header, which is why a book's cover renders perfectly well in the app
+// (a plain <img> needs no CORS) and yet produced the typographic fallback
+// card. If the proxy isn't deployed, this simply fails too and the fallback
+// still catches it.
+async function loadPoster(url) {
+  if (!url) return null;
+  const direct = await loadCorsImage(url);
+  if (direct) return direct;
+  const proxied = proxiedPosterUrl(url);
+  return proxied ? loadCorsImage(proxied) : null;
+}
+
 function starsText(rating) {
   const n = Math.max(0, Math.min(5, rating || 0));
   return '★'.repeat(n) + '☆'.repeat(5 - n);
@@ -555,7 +589,7 @@ export async function renderReviewCard(item) {
   canvas.height = CARD_H;
   const ctx = canvas.getContext('2d');
 
-  const img = await loadCorsImage(item.poster_url);
+  const img = await loadPoster(item.poster_url);
   if (img) drawWithPoster(ctx, item, img);
   else drawWithoutPoster(ctx, item);
 

@@ -126,8 +126,18 @@ alter table public.items add column if not exists notified_release_soon_days sma
 alter table public.items add column if not exists notified_release_day_at timestamptz;
 alter table public.items add column if not exists notified_stale_progress_at timestamptz;
 alter table public.items add column if not exists release_date_checked_at timestamptz;
+alter table public.items add column if not exists season_number smallint check (season_number is null or season_number > 0);
+alter table public.items add column if not exists progress_days text[] not null default '{}';
 alter table public.items alter column release_date type text using release_date::text;
 ```
+
+`progress_days` needs to exist *before* you deploy the matching app code —
+the app writes to it every time you move a book, show or game along, and
+without the column every one of those writes fails and the progress
+control looks like it does nothing. There's a fuller version of this
+migration, with notes, in `supabase/one-off/add-progress-days.sql`.
+`season_number` came in with per-season TV tracking, alongside a widened
+`status` check — see `supabase/one-off/add-season-entries.sql`.
 
 That last line matters even if you already had `release_date` — it was
 originally a `date` column, which rejects a partial date like `"2021-10"`
@@ -313,6 +323,47 @@ the other data sources, so there's nothing to add.
 > real URL. If you redeploy via the CLI as above, the slug will match the
 > directory name and that call needs updating to `/functions/v1/igdb-search`.
 
+## Poster images on share cards (poster-proxy)
+
+Optional, and only affects the share card. Without it, cards for books
+(and anything else whose cover host refuses CORS) still render — just as
+the typographic fallback, with the media type's emoji instead of the
+cover.
+
+The reason it's needed: to draw a cover onto a canvas and then export the
+canvas as a file, the browser needs the image host to send an
+`Access-Control-Allow-Origin` header. The app's ordinary `<img>` tags
+don't need that, which is why a cover can look perfectly fine in the
+Journal and still be unusable on a card. `books.google.com` never sends
+it; `image.tmdb.org` usually does but is documented as inconsistent.
+
+`supabase/functions/poster-proxy/index.ts` fetches the image server-side,
+where CORS doesn't apply, and re-serves the bytes with the header
+attached. It will only fetch from the poster hosts this app actually uses
+— an allowlist — since anything that fetches arbitrary URLs on request is
+an open proxy and a liability.
+
+```sh
+supabase functions deploy poster-proxy --no-verify-jwt
+```
+
+Or via the dashboard: create a function with the slug **`poster-proxy`**
+and turn **Verify JWT off** in its Settings tab. That setting matters more
+here than for the search function — an `<img>` tag can't send an
+`Authorization` header, so a function that requires one can never be used
+as an image source.
+
+No secrets, nothing to configure. The card tries the image host directly
+first and only falls back to this, so deploying it changes nothing for
+hosts that were already working.
+
+To check it's live, open this in a browser — you should get a book cover,
+not JSON:
+
+```
+https://<project-ref>.supabase.co/functions/v1/poster-proxy?url=https%3A%2F%2Fbooks.google.com%2Fbooks%2Fcontent%3Fid%3DzyTCAlFPjgYC%26printsec%3Dfrontcover%26img%3D1%26zoom%3D1
+```
+
 ### Previously: RAWG
 
 Game search used [RAWG](https://rawg.io) until August 2026. It was
@@ -440,4 +491,6 @@ js/search.js           TMDb / Google Books / iTunes / MusicBrainz / IGDB search 
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
 supabase/functions/igdb-search/index.ts  Edge Function proxying IGDB search (see "Setting up video game search")
+supabase/functions/poster-proxy/index.ts  Edge Function re-serving poster images with CORS headers, for share cards
+supabase/one-off/          One-time migrations and backfills, each with notes and a rollback
 ```
