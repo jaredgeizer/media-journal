@@ -15,9 +15,9 @@
 --   STEP 1 (required) adds progress_days: the local calendar days you made
 --     progress on an item, 'YYYY-MM-DD', at most one entry per day. Empty
 --     for every existing row — see "history" below.
---   STEP 2 (optional, and a guess) seeds a single day for items you're
---     currently partway through, so the calendar isn't completely bare on
---     day one.
+--   STEP 2 (declined, commented out) would have seeded a single guessed
+--     day for items you're currently partway through, so the calendar
+--     wasn't completely bare on day one.
 --
 -- SAFE TO RE-RUN. Step 1 is guarded and defaults to an empty array, so it
 -- cannot alter existing row data.
@@ -29,8 +29,9 @@
 -- stay as they are, permanently; outline dots start accumulating from the
 -- day this ships.
 --
--- HOW TO RUN: Supabase → SQL Editor → New query. Step 1 is short enough to
--- paste and run in one go. Read step 2's preview before applying it.
+-- HOW TO RUN: Supabase → SQL Editor → New query. Step 1 is the only part
+-- that executes — paste and run the whole file. Step 2 was declined and is
+-- commented out; see its header.
 
 
 -- ---------------------------------------------------------------------------
@@ -56,7 +57,13 @@ where cardinality(progress_days) > 0;
 
 
 -- ---------------------------------------------------------------------------
--- STEP 2 — seed today's in-progress items (OPTIONAL, AND APPROXIMATE)
+-- STEP 2 — seed today's in-progress items (DECLINED — commented out)
+--
+-- Not run, on purpose: the calendar should only show days it can actually
+-- vouch for, and this seeds days it can't. Left here intact rather than
+-- deleted, so it stays available if that's ever revisited — uncommenting
+-- it is then a deliberate act rather than the side effect of pasting the
+-- file.
 --
 -- This is a guess, not a recovery. For an item you're currently partway
 -- through, the last edit was *probably* progress — but it might equally
@@ -64,45 +71,42 @@ where cardinality(progress_days) > 0;
 -- local day of updated_at, so at worst you get a handful of dots on days
 -- you touched the item rather than days you watched or read it.
 --
--- Skip this entirely if you'd rather the calendar only ever showed days it
--- can actually vouch for. Nothing else depends on it.
---
 -- 'America/New_York' below is the timezone the days are computed in — set
 -- it to yours, since updated_at is stored in UTC and an evening edit lands
 -- on the following day if converted wrongly.
 -- ---------------------------------------------------------------------------
 
 -- 2a. PREVIEW — run this first and look at what it would write.
-select id, title, media_type, updated_at,
-       to_char(updated_at at time zone 'America/New_York', 'YYYY-MM-DD') as would_seed
-from public.items
-where status = 'in_progress'
-  and cardinality(progress_days) = 0
-order by updated_at desc;
+-- select id, title, media_type, updated_at,
+--        to_char(updated_at at time zone 'America/New_York', 'YYYY-MM-DD') as would_seed
+-- from public.items
+-- where status = 'in_progress'
+--   and cardinality(progress_days) = 0
+-- order by updated_at desc;
 
 -- 2b. RECORD what is about to be written, so the rollback below can be
 -- exact. This is not optional bookkeeping: writing progress_days fires the
 -- items_set_updated_at trigger, so after the apply step updated_at is the
 -- migration's own timestamp and the seeded day can no longer be recomputed
 -- from the row. Without this table, a rollback could only guess.
-create table if not exists public.progress_days_seed as
-select id,
-       array[to_char(updated_at at time zone 'America/New_York', 'YYYY-MM-DD')] as seeded
-from public.items
-where status = 'in_progress'
-  and cardinality(progress_days) = 0;
+-- create table if not exists public.progress_days_seed as
+-- select id,
+--        array[to_char(updated_at at time zone 'America/New_York', 'YYYY-MM-DD')] as seeded
+-- from public.items
+-- where status = 'in_progress'
+--   and cardinality(progress_days) = 0;
 
 -- Everything in the public schema is reachable through PostgREST with the
 -- anon key. This holds only ids and dates, but it belongs to one user and
 -- has no policies of its own, so lock it to the SQL editor.
-alter table public.progress_days_seed enable row level security;
+-- alter table public.progress_days_seed enable row level security;
 
 -- 2c. APPLY — only after the preview looks right.
-update public.items i
-set progress_days = s.seeded
-from public.progress_days_seed s
-where i.id = s.id
-  and cardinality(i.progress_days) = 0;
+-- update public.items i
+-- set progress_days = s.seeded
+-- from public.progress_days_seed s
+-- where i.id = s.id
+--   and cardinality(i.progress_days) = 0;
 
 
 -- ---------------------------------------------------------------------------
