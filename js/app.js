@@ -2,6 +2,8 @@ import { createStore } from './storage.js';
 import { search as searchExternal, tmdbAvailable, gameSearchAvailable, getTVSeasonInfo, getSeasonEpisodeNames, getImdbId, SEARCHABLE_TYPES } from './search.js';
 import { parseGoodreadsCsv, parseFableCsv, parseLetterboxdZip, dedupeAgainstLibrary, exportAsJson, matchesLibraryItem } from './importexport.js';
 import { shareReviewCard } from './sharecard.js';
+import { isSeasonEntry, showKey } from './items.js';
+import { exportForSequel } from './sequelexport.js';
 
 const TYPE_EMOJI = { movie: '🍿', tv: '📺', book: '📚', podcast: '🎙️', album: '💿', game: '🎮', play: '🎭', restaurant: '🍽️', other: '✨' };
 const TYPE_LABEL = { movie: 'Movie', tv: 'TV Show', book: 'Book', podcast: 'Podcast', album: 'Album', game: 'Video Game', play: 'Play', restaurant: 'Restaurant', other: 'Other' };
@@ -1062,10 +1064,9 @@ function cardHtml(item) {
 // entry": every non-TV item, every container, and every legacy show-level TV
 // row from before this existed (those stay as they are — there's no way to
 // know which seasons an old entry covered).
-
-function isSeasonEntry(item) {
-  return item.media_type === 'tv' && item.season_number != null;
-}
+//
+// isSeasonEntry() and showKey() live in js/items.js, since js/sequelexport.js
+// needs the same grouping to collapse a show back into one row.
 
 // A container is a TV row that isn't a season entry and isn't one of the old
 // show-level completed rows. The invariant that makes the rest of the app
@@ -1087,16 +1088,6 @@ function displayTitle(item) {
 // season entry.
 function seasonExternalId(container, seasonNumber) {
   return container.external_id ? `${container.external_id}-s${seasonNumber}` : null;
-}
-
-// Groups season entries belonging to the same show. Prefers the TMDb id
-// embedded in external_id ('tv-95396-s2' -> 'tv-95396') since titles can be
-// edited or duplicated; falls back to the title for manually-added shows
-// that never had one.
-function showKey(item) {
-  if (item.media_type !== 'tv') return null;
-  const match = /^(tv-\d+)(?:-s\d+)?$/.exec(item.external_id || '');
-  return match ? match[1] : `title:${(item.title || '').trim().toLowerCase()}`;
 }
 
 // Season entries for the same show that are actually in the Journal.
@@ -2960,6 +2951,11 @@ async function openImportExportModal() {
       <button type="button" class="btn-secondary" id="exportJsonBtn" style="width:100%;">Export my data (JSON)</button>
     </div>
     <div class="field">
+      <label>Export for Sequel</label>
+      <p class="modal-subtitle" style="margin:0 0 8px;">A .csv in <a href="https://sequel.app" target="_blank" rel="noopener">Sequel</a>'s import format. Movies, shows, games and books only — Sequel doesn't track the other types. Each show exports as one entry, with its seasons' ratings averaged.</p>
+      <button type="button" class="btn-secondary" id="exportSequelBtn" style="width:100%;">Export for Sequel (CSV)</button>
+    </div>
+    <div class="field">
       <label>Import from Goodreads</label>
       <p class="modal-subtitle" style="margin:0 0 8px;">Export your library at <a href="https://www.goodreads.com/review/import" target="_blank" rel="noopener">goodreads.com/review/import</a> → "Export Library", then upload the .csv here.</p>
       <input type="file" accept=".csv" id="goodreadsFile">
@@ -2988,10 +2984,29 @@ async function openImportExportModal() {
   el('modalCloseBtn').addEventListener('click', closeModal);
   el('exportJsonBtn').addEventListener('click', () => exportAsJson(items));
 
+  el('exportSequelBtn').addEventListener('click', () => {
+    const { rowCount, skipped } = exportForSequel(items);
+    // Say what didn't go, rather than leaving a quietly shorter library to
+    // be discovered on the other side.
+    const left = Object.entries(skipped).map(
+      ([type, n]) => `${n} ${n === 1 ? (TYPE_LABEL[type] || type).toLowerCase() : TYPE_LABEL_PLURAL[type] || type}`
+    );
+    const notice = el('importNotice');
+    notice.textContent = left.length
+      ? `${rowCount} entries exported. Left out: ${joinWithAnd(left)} — Sequel doesn't track them.`
+      : `${rowCount} entries exported.`;
+    // This node is otherwise the import *error* slot, styled as a warning.
+    // A clean export isn't one.
+    notice.classList.toggle('warn', left.length > 0);
+    notice.classList.remove('hidden');
+  });
+
   function showImportError(err) {
     const n = el('importNotice');
     if (!n) return;
     n.textContent = err.message || 'Could not read that file.';
+    // The Sequel export borrows this node and can clear .warn off it.
+    n.classList.add('warn');
     n.classList.remove('hidden');
   }
 

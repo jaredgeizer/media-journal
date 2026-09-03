@@ -373,6 +373,28 @@ seconds even when up. Games already saved from RAWG keep working —
 they're matched by title against new IGDB results, so nothing needs
 re-adding.
 
+## Exporting to Sequel
+
+Account → Import/Export → **Export for Sequel (CSV)** writes a .csv in
+[Sequel](https://sequel.app)'s generic import format.
+
+Two things it does that are worth knowing before you import:
+
+- **Only movies, shows, games and books go.** Sequel doesn't track
+  podcasts, albums, plays or restaurants, so those rows are left out rather
+  than bent into a type that would import cleanly and mean nothing. The
+  count of what was skipped is shown after the export.
+- **Each show exports as one entry.** This app stores a show as a container
+  plus a completed row per season; sent as-is, a three-season show would
+  arrive in Sequel as four separate entries. Seasons are collapsed back into
+  one row: their ratings averaged to the nearest half (Sequel takes 4.5, so
+  a 5/4/4 show lands on 4.5), the latest season's date as the watched date,
+  and the season notes joined together.
+
+IMDb and TVDB ids are left blank — neither is stored here. TMDb ids are
+filled in for anything found through TMDb search, which should be the
+stronger match anyway.
+
 ## Importing your data
 
 Under the account menu (👤 in the header) → **Import / Export**, you can:
@@ -488,6 +510,8 @@ css/style.css        Liquid-glass design system
 js/config.js          Your Supabase + API keys (fill in, safe to commit)
 js/storage.js         Data layer: Supabase, or localStorage Demo Mode
 js/search.js           TMDb / Google Books / iTunes / MusicBrainz / IGDB search integrations
+js/items.js            Item predicates shared between app.js and the exporters
+js/sequelexport.js     Builds the Sequel CSV (see "Exporting to Sequel")
 js/app.js               App logic: rendering, filtering, modals
 supabase/schema.sql      Database schema + Row Level Security policies
 supabase/functions/igdb-search/index.ts  Edge Function proxying IGDB search (see "Setting up video game search")
